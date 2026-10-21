@@ -2,6 +2,8 @@ package com.example.still_wave_music_player.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.still_wave_music_player.data.model.AlbumSearchResult
+import com.example.still_wave_music_player.data.model.ArtistSearchResult
 import com.example.still_wave_music_player.data.model.Song
 import com.example.still_wave_music_player.data.remote.YouTubeMusicApi
 import kotlinx.coroutines.Job
@@ -12,26 +14,56 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 /**
+ * Kategori pencarian online YouTube Music.
+ */
+enum class OnlineSearchCategory(val label: String) {
+    LAGU("Lagu"),
+    ARTIS("Artis"),
+    ALBUM("Album")
+}
+
+/**
  * Status UI untuk pencarian online YouTube Music.
  */
 sealed interface OnlineSearchUiState {
     data object Kosong : OnlineSearchUiState
     data object Memuat : OnlineSearchUiState
     data class Berisi(val daftar: List<Song>) : OnlineSearchUiState
+    data class BerisiArtis(val daftar: List<ArtistSearchResult>) : OnlineSearchUiState
+    data class BerisiAlbum(val daftar: List<AlbumSearchResult>) : OnlineSearchUiState
     data object TidakAda : OnlineSearchUiState
     data class Galat(val pesan: String) : OnlineSearchUiState
 }
 
 /**
- * ViewModel untuk menangani pencarian lagu online dengan debounce 500 ms.
+ * ViewModel untuk menangani pencarian lagu, artis, dan album online dengan debounce 500 ms.
  */
 class OnlineSearchViewModel : ViewModel() {
 
     private val _uiState = MutableStateFlow<OnlineSearchUiState>(OnlineSearchUiState.Kosong)
     val uiState: StateFlow<OnlineSearchUiState> = _uiState.asStateFlow()
 
+    private val _selectedCategory = MutableStateFlow(OnlineSearchCategory.LAGU)
+    val selectedCategory: StateFlow<OnlineSearchCategory> = _selectedCategory.asStateFlow()
+
     private var currentQuery: String = ""
     private var searchJob: Job? = null
+
+    /**
+     * Mengubah kategori pencarian online (Lagu, Artis, Album).
+     */
+    fun setCategory(category: OnlineSearchCategory) {
+        if (_selectedCategory.value == category) return
+        _selectedCategory.value = category
+
+        val trimmed = currentQuery.trim()
+        if (trimmed.length >= 2) {
+            searchJob?.cancel()
+            searchJob = viewModelScope.launch {
+                jalankanPencarian(trimmed)
+            }
+        }
+    }
 
     /**
      * Dipanggil setiap kali kueri pencarian berubah.
@@ -68,20 +100,59 @@ class OnlineSearchViewModel : ViewModel() {
 
     private suspend fun jalankanPencarian(kueri: String) {
         _uiState.value = OnlineSearchUiState.Memuat
-        val result = YouTubeMusicApi.cari(kueri)
-        result.fold(
-            onSuccess = { list ->
-                if (list.isEmpty()) {
-                    _uiState.value = OnlineSearchUiState.TidakAda
-                } else {
-                    _uiState.value = OnlineSearchUiState.Berisi(list)
-                }
-            },
-            onFailure = { error ->
-                _uiState.value = OnlineSearchUiState.Galat(
-                    error.message ?: "Gagal memuat hasil"
+
+        when (_selectedCategory.value) {
+            OnlineSearchCategory.LAGU -> {
+                val result = YouTubeMusicApi.cari(kueri)
+                result.fold(
+                    onSuccess = { list ->
+                        _uiState.value = if (list.isEmpty()) {
+                            OnlineSearchUiState.TidakAda
+                        } else {
+                            OnlineSearchUiState.Berisi(list)
+                        }
+                    },
+                    onFailure = { error ->
+                        _uiState.value = OnlineSearchUiState.Galat(
+                            error.message ?: "Gagal memuat lagu"
+                        )
+                    }
                 )
             }
-        )
+            OnlineSearchCategory.ARTIS -> {
+                val result = YouTubeMusicApi.searchArtists(kueri)
+                result.fold(
+                    onSuccess = { list ->
+                        _uiState.value = if (list.isEmpty()) {
+                            OnlineSearchUiState.TidakAda
+                        } else {
+                            OnlineSearchUiState.BerisiArtis(list)
+                        }
+                    },
+                    onFailure = { error ->
+                        _uiState.value = OnlineSearchUiState.Galat(
+                            error.message ?: "Gagal memuat artis"
+                        )
+                    }
+                )
+            }
+            OnlineSearchCategory.ALBUM -> {
+                val result = YouTubeMusicApi.searchAlbums(kueri)
+                result.fold(
+                    onSuccess = { list ->
+                        _uiState.value = if (list.isEmpty()) {
+                            OnlineSearchUiState.TidakAda
+                        } else {
+                            OnlineSearchUiState.BerisiAlbum(list)
+                        }
+                    },
+                    onFailure = { error ->
+                        _uiState.value = OnlineSearchUiState.Galat(
+                            error.message ?: "Gagal memuat album"
+                        )
+                    }
+                )
+            }
+        }
     }
 }

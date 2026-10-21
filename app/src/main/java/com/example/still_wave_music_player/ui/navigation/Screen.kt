@@ -8,4 +8,12 @@ sealed class Screen(val route: String, val title: String) {
     data object Jelajah : Screen("jelajah", "Jelajah")
     data object Pustaka : Screen("pustaka", "Pustaka")
     data object Cari    : Screen("cari", "Cari")
+
+    data object Artis : Screen("artis/{browseId}", "Artis") {
+        fun createRoute(browseId: String): String = "artis/$browseId"
+    }
+
+    data object Album : Screen("album/{browseId}", "Album") {
+        fun createRoute(browseId: String): String = "album/$browseId"
+    }
 }

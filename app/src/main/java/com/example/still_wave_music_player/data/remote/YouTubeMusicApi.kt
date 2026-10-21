@@ -1,6 +1,10 @@
 package com.example.still_wave_music_player.data.remote
 
 import android.util.Log
+import com.example.still_wave_music_player.data.model.AlbumDetails
+import com.example.still_wave_music_player.data.model.AlbumSearchResult
+import com.example.still_wave_music_player.data.model.ArtistDetails
+import com.example.still_wave_music_player.data.model.ArtistSearchResult
 import com.example.still_wave_music_player.data.model.Song
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -11,9 +15,10 @@ import java.net.SocketTimeoutException
 import java.net.URL
 import java.net.UnknownHostException
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Klien API pencarian lagu YouTube Music menggunakan endpoint internal YouTubei.
+ * Klien API pencarian lagu, artis, album, dan browse YouTube Music menggunakan endpoint internal YouTubei.
  */
 object YouTubeMusicApi {
     private const val TAG = "MusikPlayer"
@@ -22,10 +27,16 @@ object YouTubeMusicApi {
     const val CLIENT_NAME = "WEB_REMIX"
     const val CLIENT_VERSION = "1.20250101.01.00"
     const val PARAMS_SONGS = "EgWKAQIIAWoMEA4QChADEAQQCRAF"
+    const val PARAMS_ARTISTS = "EgWKAQIgAWoMEA4QChADEAQQCRAF"
+    const val PARAMS_ALBUMS = "EgWKAQIYAWoMEA4QChADEAQQCRAF"
 
     private const val SEARCH_URL = "https://music.youtube.com/youtubei/v1/search?prettyPrint=false"
     private const val NEXT_URL = "https://music.youtube.com/youtubei/v1/next?prettyPrint=false"
+    private const val BROWSE_URL = "https://music.youtube.com/youtubei/v1/browse?prettyPrint=false"
     private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+
+    private val artistBrowseCache = ConcurrentHashMap<String, ArtistDetails>()
+    private val albumBrowseCache = ConcurrentHashMap<String, AlbumDetails>()
 
     private class HttpException(message: String) : Exception(message)
 
@@ -90,6 +101,131 @@ object YouTubeMusicApi {
         } catch (e: Exception) {
             Log.e(TAG, "Radio YouTube Music gagal: ${e.message}")
             Result.failure(Exception("Gagal memuat radio"))
+        }
+    }
+
+    /**
+     * Mencari artis dari YouTube Music di Dispatchers.IO.
+     */
+    suspend fun searchArtists(kueri: String): Result<List<ArtistSearchResult>> = withContext(Dispatchers.IO) {
+        val trimmedQuery = kueri.trim()
+        if (trimmedQuery.isEmpty()) {
+            return@withContext Result.success(emptyList())
+        }
+
+        try {
+            var artists = parseArtistsFromResponse(executeSearchRequest(trimmedQuery, PARAMS_ARTISTS), filterByPageType = false)
+            if (artists.isEmpty()) {
+                artists = parseArtistsFromResponse(executeSearchRequest(trimmedQuery, null), filterByPageType = true)
+            }
+            Result.success(artists)
+        } catch (e: UnknownHostException) {
+            Log.e(TAG, "Pencarian artis gagal: tidak ada internet (${e.message})")
+            Result.failure(Exception("Tidak ada koneksi internet"))
+        } catch (e: SocketTimeoutException) {
+            Log.e(TAG, "Pencarian artis gagal: batas waktu terlampaui (${e.message})")
+            Result.failure(Exception("Koneksi terlalu lama"))
+        } catch (e: HttpException) {
+            Log.e(TAG, "Pencarian artis gagal: ${e.message}")
+            Result.failure(e)
+        } catch (e: Exception) {
+            Log.e(TAG, "Pencarian artis gagal: ${e.message}")
+            Result.failure(Exception("Gagal memuat artis"))
+        }
+    }
+
+    /**
+     * Mencari album dari YouTube Music di Dispatchers.IO.
+     */
+    suspend fun searchAlbums(kueri: String): Result<List<AlbumSearchResult>> = withContext(Dispatchers.IO) {
+        val trimmedQuery = kueri.trim()
+        if (trimmedQuery.isEmpty()) {
+            return@withContext Result.success(emptyList())
+        }
+
+        try {
+            var albums = parseAlbumsFromResponse(executeSearchRequest(trimmedQuery, PARAMS_ALBUMS), filterByPageType = false)
+            if (albums.isEmpty()) {
+                albums = parseAlbumsFromResponse(executeSearchRequest(trimmedQuery, null), filterByPageType = true)
+            }
+            Result.success(albums)
+        } catch (e: UnknownHostException) {
+            Log.e(TAG, "Pencarian album gagal: tidak ada internet (${e.message})")
+            Result.failure(Exception("Tidak ada koneksi internet"))
+        } catch (e: SocketTimeoutException) {
+            Log.e(TAG, "Pencarian album gagal: batas waktu terlampaui (${e.message})")
+            Result.failure(Exception("Koneksi terlalu lama"))
+        } catch (e: HttpException) {
+            Log.e(TAG, "Pencarian album gagal: ${e.message}")
+            Result.failure(e)
+        } catch (e: Exception) {
+            Log.e(TAG, "Pencarian album gagal: ${e.message}")
+            Result.failure(Exception("Gagal memuat album"))
+        }
+    }
+
+    /**
+     * Mengambil data mentah browse dari YouTube Music di Dispatchers.IO.
+     */
+    suspend fun browse(browseId: String): String = withContext(Dispatchers.IO) {
+        executePostRequest(BROWSE_URL, buildBrowseRequestBody(browseId))
+    }
+
+    /**
+     * Mengambil rincian album dari YouTube Music di Dispatchers.IO dengan cache memori sesi.
+     */
+    suspend fun browseAlbum(browseId: String): Result<AlbumDetails> = withContext(Dispatchers.IO) {
+        val cached = albumBrowseCache[browseId]
+        if (cached != null) {
+            return@withContext Result.success(cached)
+        }
+
+        try {
+            val responseText = browse(browseId)
+            val details = parseAlbumDetails(browseId, responseText)
+            albumBrowseCache[browseId] = details
+            Result.success(details)
+        } catch (e: UnknownHostException) {
+            Log.e(TAG, "Browse album gagal: tidak ada internet (${e.message})")
+            Result.failure(Exception("Tidak ada koneksi internet"))
+        } catch (e: SocketTimeoutException) {
+            Log.e(TAG, "Browse album gagal: batas waktu terlampaui (${e.message})")
+            Result.failure(Exception("Koneksi terlalu lama"))
+        } catch (e: HttpException) {
+            Log.e(TAG, "Browse album gagal: ${e.message}")
+            Result.failure(e)
+        } catch (e: Exception) {
+            Log.e(TAG, "Browse album gagal: ${e.message}")
+            Result.failure(Exception("Gagal memuat album"))
+        }
+    }
+
+    /**
+     * Mengambil rincian artis dari YouTube Music di Dispatchers.IO dengan cache memori sesi.
+     */
+    suspend fun browseArtist(browseId: String): Result<ArtistDetails> = withContext(Dispatchers.IO) {
+        val cached = artistBrowseCache[browseId]
+        if (cached != null) {
+            return@withContext Result.success(cached)
+        }
+
+        try {
+            val responseText = browse(browseId)
+            val details = parseArtistDetails(browseId, responseText)
+            artistBrowseCache[browseId] = details
+            Result.success(details)
+        } catch (e: UnknownHostException) {
+            Log.e(TAG, "Browse artis gagal: tidak ada internet (${e.message})")
+            Result.failure(Exception("Tidak ada koneksi internet"))
+        } catch (e: SocketTimeoutException) {
+            Log.e(TAG, "Browse artis gagal: batas waktu terlampaui (${e.message})")
+            Result.failure(Exception("Koneksi terlalu lama"))
+        } catch (e: HttpException) {
+            Log.e(TAG, "Browse artis gagal: ${e.message}")
+            Result.failure(e)
+        } catch (e: Exception) {
+            Log.e(TAG, "Browse artis gagal: ${e.message}")
+            Result.failure(Exception("Gagal memuat artis"))
         }
     }
 
@@ -582,6 +718,674 @@ object YouTubeMusicApi {
             }
         } catch (_: Exception) {
             0L
+        }
+    }
+
+    /**
+     * Membangun payload JSON untuk request browse YouTubei.
+     */
+    private fun buildBrowseRequestBody(browseId: String): String {
+        val clientObj = JSONObject().apply {
+            put("clientName", CLIENT_NAME)
+            put("clientVersion", CLIENT_VERSION)
+            put("hl", "id")
+            put("gl", "ID")
+        }
+        val contextObj = JSONObject().apply {
+            put("client", clientObj)
+        }
+        val rootObj = JSONObject().apply {
+            put("context", contextObj)
+            put("browseId", browseId)
+        }
+        return rootObj.toString()
+    }
+
+    /**
+     * Mengurai hasil pencarian artis dari respons JSON YouTubei.
+     */
+    private fun parseArtistsFromResponse(jsonStr: String, filterByPageType: Boolean): List<ArtistSearchResult> {
+        val rootJson = try {
+            JSONObject(jsonStr)
+        } catch (e: Exception) {
+            Log.e(TAG, "Gagal mengurai JSON artis: ${e.message}")
+            return emptyList()
+        }
+
+        val renderers = mutableListOf<JSONObject>()
+        findItemRenderers(rootJson, renderers)
+        val results = mutableListOf<ArtistSearchResult>()
+        val seenBrowseIds = mutableSetOf<String>()
+
+        for (item in renderers) {
+            val flexCols = item.optJSONArray("flexColumns") ?: continue
+            if (flexCols.length() == 0) continue
+
+            var browseId: String? = null
+            var isArtist = false
+
+            val itemNav = item.optJSONObject("navigationEndpoint")?.optJSONObject("browseEndpoint")
+            val itemBrowseId = itemNav?.optString("browseId")
+            val itemPageType = itemNav?.optJSONObject("browseEndpointContextSupportedConfigs")
+                ?.optJSONObject("browseEndpointContextMusicConfig")
+                ?.optString("pageType")
+
+            if (!itemBrowseId.isNullOrBlank() && itemBrowseId.startsWith("UC")) {
+                browseId = itemBrowseId
+            }
+            if (itemPageType == "MUSIC_PAGE_TYPE_ARTIST") {
+                isArtist = true
+            }
+
+            val titleObj = flexCols.optJSONObject(0)
+                ?.optJSONObject("musicResponsiveListItemFlexColumnRenderer")
+                ?.optJSONObject("text")
+            val name = extractRunsText(titleObj)
+
+            val titleRuns = titleObj?.optJSONArray("runs")
+            if (titleRuns != null && titleRuns.length() > 0) {
+                val firstRun = titleRuns.optJSONObject(0)
+                val runEndpoint = firstRun?.optJSONObject("navigationEndpoint")?.optJSONObject("browseEndpoint")
+                val runBrowseId = runEndpoint?.optString("browseId")
+                val runPageType = runEndpoint?.optJSONObject("browseEndpointContextSupportedConfigs")
+                    ?.optJSONObject("browseEndpointContextMusicConfig")
+                    ?.optString("pageType")
+
+                if (browseId == null && !runBrowseId.isNullOrBlank()) {
+                    browseId = runBrowseId
+                }
+                if (runPageType == "MUSIC_PAGE_TYPE_ARTIST") {
+                    isArtist = true
+                }
+            }
+
+            if (browseId == null) {
+                browseId = findBrowseEndpointWithPrefix(item, "UC")
+            }
+
+            if (filterByPageType && !isArtist && (browseId == null || !browseId.startsWith("UC"))) {
+                continue
+            }
+
+            if (browseId.isNullOrBlank() || name.isBlank() || !seenBrowseIds.add(browseId)) {
+                continue
+            }
+
+            val thumbnailObj = item.optJSONObject("thumbnail")
+                ?.optJSONObject("musicThumbnailRenderer")
+                ?.optJSONObject("thumbnail")
+            val thumbnails = thumbnailObj?.optJSONArray("thumbnails")
+            var imageUrl: String? = null
+            if (thumbnails != null && thumbnails.length() > 0) {
+                val lastThumb = thumbnails.optJSONObject(thumbnails.length() - 1)
+                imageUrl = lastThumb?.optString("url")
+            }
+
+            results.add(
+                ArtistSearchResult(
+                    browseId = browseId,
+                    name = name,
+                    thumbnailUrl = upgradeThumbnailUrl(imageUrl)
+                )
+            )
+        }
+        return results
+    }
+
+    /**
+     * Mengurai hasil pencarian album dari respons JSON YouTubei.
+     */
+    private fun parseAlbumsFromResponse(jsonStr: String, filterByPageType: Boolean): List<AlbumSearchResult> {
+        val rootJson = try {
+            JSONObject(jsonStr)
+        } catch (e: Exception) {
+            Log.e(TAG, "Gagal mengurai JSON album: ${e.message}")
+            return emptyList()
+        }
+
+        val renderers = mutableListOf<JSONObject>()
+        findItemRenderers(rootJson, renderers)
+        val results = mutableListOf<AlbumSearchResult>()
+        val seenBrowseIds = mutableSetOf<String>()
+
+        for (item in renderers) {
+            val flexCols = item.optJSONArray("flexColumns") ?: continue
+            if (flexCols.length() == 0) continue
+
+            var browseId: String? = null
+            var isAlbum = false
+
+            val itemNav = item.optJSONObject("navigationEndpoint")?.optJSONObject("browseEndpoint")
+            val itemBrowseId = itemNav?.optString("browseId")
+            val itemPageType = itemNav?.optJSONObject("browseEndpointContextSupportedConfigs")
+                ?.optJSONObject("browseEndpointContextMusicConfig")
+                ?.optString("pageType")
+
+            if (!itemBrowseId.isNullOrBlank() && (itemBrowseId.startsWith("MPRE") || itemBrowseId.startsWith("FEmusic_library_privately_owned_release"))) {
+                browseId = itemBrowseId
+            }
+            if (itemPageType == "MUSIC_PAGE_TYPE_ALBUM") {
+                isAlbum = true
+            }
+
+            val titleObj = flexCols.optJSONObject(0)
+                ?.optJSONObject("musicResponsiveListItemFlexColumnRenderer")
+                ?.optJSONObject("text")
+            val title = extractRunsText(titleObj)
+
+            val titleRuns = titleObj?.optJSONArray("runs")
+            if (titleRuns != null && titleRuns.length() > 0) {
+                val firstRun = titleRuns.optJSONObject(0)
+                val runEndpoint = firstRun?.optJSONObject("navigationEndpoint")?.optJSONObject("browseEndpoint")
+                val runBrowseId = runEndpoint?.optString("browseId")
+                val runPageType = runEndpoint?.optJSONObject("browseEndpointContextSupportedConfigs")
+                    ?.optJSONObject("browseEndpointContextMusicConfig")
+                    ?.optString("pageType")
+
+                if (browseId == null && !runBrowseId.isNullOrBlank()) {
+                    browseId = runBrowseId
+                }
+                if (runPageType == "MUSIC_PAGE_TYPE_ALBUM") {
+                    isAlbum = true
+                }
+            }
+
+            if (browseId == null) {
+                browseId = findBrowseEndpointWithPrefix(item, "MPRE")
+            }
+
+            if (filterByPageType && !isAlbum && (browseId == null || !browseId.startsWith("MPRE"))) {
+                continue
+            }
+
+            if (browseId.isNullOrBlank() || title.isBlank() || !seenBrowseIds.add(browseId)) {
+                continue
+            }
+
+            var artist = "Artis tidak diketahui"
+            var year: String? = null
+            if (flexCols.length() > 1) {
+                val subtitleRuns = flexCols.optJSONObject(1)
+                    ?.optJSONObject("musicResponsiveListItemFlexColumnRenderer")
+                    ?.optJSONObject("text")
+                    ?.optJSONArray("runs")
+                if (subtitleRuns != null) {
+                    val segs = mutableListOf<String>()
+                    val curr = StringBuilder()
+                    for (i in 0 until subtitleRuns.length()) {
+                        val r = subtitleRuns.optJSONObject(i) ?: continue
+                        val t = r.optString("text") ?: ""
+                        if (t.contains("•")) {
+                            val s = curr.toString().trim()
+                            if (s.isNotEmpty()) segs.add(s)
+                            curr.clear()
+                        } else {
+                            curr.append(t)
+                        }
+                    }
+                    val lastS = curr.toString().trim()
+                    if (lastS.isNotEmpty()) segs.add(lastS)
+
+                    val nonType = segs.filter { it.lowercase(Locale.ROOT) !in setOf("album", "ep", "single", "singel") }
+                    if (nonType.isNotEmpty()) {
+                        artist = nonType[0]
+                        if (nonType.size > 1 && nonType.last().matches(Regex("""^\d{4}$"""))) {
+                            year = nonType.last()
+                        }
+                    }
+                }
+            }
+
+            val thumbnailObj = item.optJSONObject("thumbnail")
+                ?.optJSONObject("musicThumbnailRenderer")
+                ?.optJSONObject("thumbnail")
+            val thumbnails = thumbnailObj?.optJSONArray("thumbnails")
+            var imageUrl: String? = null
+            if (thumbnails != null && thumbnails.length() > 0) {
+                val lastThumb = thumbnails.optJSONObject(thumbnails.length() - 1)
+                imageUrl = lastThumb?.optString("url")
+            }
+
+            results.add(
+                AlbumSearchResult(
+                    browseId = browseId,
+                    title = title,
+                    artist = artist,
+                    year = year,
+                    thumbnailUrl = upgradeThumbnailUrl(imageUrl)
+                )
+            )
+        }
+        return results
+    }
+
+    /**
+     * Mengurai rincian album dan daftar lagunya.
+     */
+    private fun parseAlbumDetails(browseId: String, jsonStr: String): AlbumDetails {
+        val rootJson = try {
+            JSONObject(jsonStr)
+        } catch (e: Exception) {
+            Log.e(TAG, "Gagal mengurai respons album: ${e.message}")
+            return AlbumDetails(browseId = browseId, title = "Album", artist = "Artis tidak diketahui")
+        }
+
+        val header = findFirstObjectNamed(rootJson, setOf("musicResponsiveHeaderRenderer", "musicDetailHeaderRenderer"))
+        var albumTitle = "Album"
+        var artistName = "Artis tidak diketahui"
+        var artistBrowseId: String? = null
+        var year: String? = null
+        var albumThumbnailUrl: String? = null
+
+        if (header != null) {
+            val titleText = extractRunsText(header.optJSONObject("title"))
+            if (titleText.isNotBlank()) albumTitle = titleText
+
+            val subtitleObj = header.optJSONObject("subtitle")
+                ?: header.optJSONObject("straplineTextOne")
+                ?: header.optJSONObject("bylineText")
+            val runs = subtitleObj?.optJSONArray("runs")
+            if (runs != null) {
+                val segs = mutableListOf<String>()
+                val curr = StringBuilder()
+                for (i in 0 until runs.length()) {
+                    val r = runs.optJSONObject(i) ?: continue
+                    val t = r.optString("text") ?: ""
+                    val bId = r.optJSONObject("navigationEndpoint")?.optJSONObject("browseEndpoint")?.optString("browseId")
+                    if (!bId.isNullOrBlank() && bId.startsWith("UC") && artistBrowseId == null) {
+                        artistBrowseId = bId
+                        artistName = t
+                    }
+                    if (t.contains("•")) {
+                        val s = curr.toString().trim()
+                        if (s.isNotEmpty()) segs.add(s)
+                        curr.clear()
+                    } else {
+                        curr.append(t)
+                    }
+                }
+                val lastS = curr.toString().trim()
+                if (lastS.isNotEmpty()) segs.add(lastS)
+
+                for (s in segs) {
+                    if (s.matches(Regex("""^\d{4}$"""))) {
+                        year = s
+                    } else if (artistName == "Artis tidak diketahui" && !s.equals("album", ignoreCase = true) && !s.equals("ep", ignoreCase = true)) {
+                        artistName = s
+                    }
+                }
+            }
+
+            val thumbObj = header.optJSONObject("thumbnail")
+                ?.optJSONObject("musicThumbnailRenderer")
+                ?.optJSONObject("thumbnail")
+            val thumbs = thumbObj?.optJSONArray("thumbnails")
+            if (thumbs != null && thumbs.length() > 0) {
+                val lastThumb = thumbs.optJSONObject(thumbs.length() - 1)
+                albumThumbnailUrl = upgradeThumbnailUrl(lastThumb?.optString("url"))
+            }
+        }
+
+        // Cari lagu di musicShelfRenderer
+        val renderers = mutableListOf<JSONObject>()
+        findItemRenderers(rootJson, renderers)
+        val songs = mutableListOf<Song>()
+        val seenVideoIds = mutableSetOf<String>()
+
+        for (item in renderers) {
+            val videoId = item.optString("videoId").takeIf { it.isNotBlank() }
+                ?: findWatchEndpointVideoId(item)
+            if (videoId.isNullOrBlank() || !seenVideoIds.add(videoId)) {
+                continue
+            }
+
+            val flexCols = item.optJSONArray("flexColumns") ?: continue
+            if (flexCols.length() == 0) continue
+
+            val trackTitle = extractRunsText(
+                flexCols.optJSONObject(0)
+                    ?.optJSONObject("musicResponsiveListItemFlexColumnRenderer")
+                    ?.optJSONObject("text")
+            ).ifBlank { "Lagu ${songs.size + 1}" }
+
+            // Durasi dari fixedColumns jika ada
+            var durationMs = 0L
+            val fixedCols = item.optJSONArray("fixedColumns")
+            if (fixedCols != null && fixedCols.length() > 0) {
+                val durStr = extractRunsText(
+                    fixedCols.optJSONObject(0)
+                        ?.optJSONObject("musicResponsiveListItemFixedColumnRenderer")
+                        ?.optJSONObject("text")
+                )
+                if (durStr.isNotBlank()) {
+                    durationMs = parseDurationMs(durStr)
+                }
+            }
+
+            songs.add(
+                Song(
+                    id = "yt_$videoId",
+                    title = trackTitle,
+                    artist = artistName,
+                    album = albumTitle,
+                    durationMs = durationMs,
+                    thumbnailUrl = albumThumbnailUrl,
+                    contentUri = null,
+                    dateAdded = 0L,
+                    albumId = 0L,
+                    videoId = videoId,
+                    artistBrowseId = artistBrowseId,
+                    albumBrowseId = browseId
+                )
+            )
+        }
+
+        return AlbumDetails(
+            browseId = browseId,
+            title = albumTitle,
+            artist = artistName,
+            artistBrowseId = artistBrowseId,
+            year = year,
+            thumbnailUrl = albumThumbnailUrl,
+            songs = songs
+        )
+    }
+
+    /**
+     * Mengurai rincian artis, lagu populer, album, dan singel.
+     */
+    private fun parseArtistDetails(browseId: String, jsonStr: String): ArtistDetails {
+        val rootJson = try {
+            JSONObject(jsonStr)
+        } catch (e: Exception) {
+            Log.e(TAG, "Gagal mengurai respons artis: ${e.message}")
+            return ArtistDetails(browseId = browseId, name = "Artis")
+        }
+
+        val header = findFirstObjectNamed(
+            rootJson,
+            setOf("musicImmersiveHeaderRenderer", "musicVisualHeaderRenderer", "musicHeaderRenderer", "musicResponsiveHeaderRenderer")
+        )
+
+        var artistName = "Artis"
+        var artistThumbnailUrl: String? = null
+        var listeners: String? = null
+
+        if (header != null) {
+            val nameText = extractRunsText(header.optJSONObject("title"))
+            if (nameText.isNotBlank()) artistName = nameText
+
+            val subBtn = header.optJSONObject("subscriptionButton")?.optJSONObject("subscribeButtonRenderer")
+            val subText = extractRunsText(subBtn?.optJSONObject("subscriberCountText"))
+            if (subText.isNotBlank()) {
+                listeners = subText
+            } else {
+                val subtitleText = extractRunsText(header.optJSONObject("subtitle"))
+                if (subtitleText.isNotBlank()) listeners = subtitleText
+            }
+
+            val thumbObj = (header.optJSONObject("thumbnail") ?: header.optJSONObject("foregroundThumbnail"))
+                ?.optJSONObject("musicThumbnailRenderer")
+                ?.optJSONObject("thumbnail")
+            val thumbs = thumbObj?.optJSONArray("thumbnails")
+            if (thumbs != null && thumbs.length() > 0) {
+                val lastThumb = thumbs.optJSONObject(thumbs.length() - 1)
+                artistThumbnailUrl = upgradeThumbnailUrl(lastThumb?.optString("url"))
+            }
+        }
+
+        // Top songs dari musicShelfRenderer
+        val renderers = mutableListOf<JSONObject>()
+        findItemRenderers(rootJson, renderers)
+        val topSongs = mutableListOf<Song>()
+        val seenVideoIds = mutableSetOf<String>()
+
+        for (item in renderers) {
+            if (topSongs.size >= 10) break
+            val videoId = item.optString("videoId").takeIf { it.isNotBlank() }
+                ?: findWatchEndpointVideoId(item)
+            if (videoId.isNullOrBlank() || !seenVideoIds.add(videoId)) {
+                continue
+            }
+
+            val flexCols = item.optJSONArray("flexColumns") ?: continue
+            if (flexCols.length() == 0) continue
+
+            val title = extractRunsText(
+                flexCols.optJSONObject(0)
+                    ?.optJSONObject("musicResponsiveListItemFlexColumnRenderer")
+                    ?.optJSONObject("text")
+            ).ifBlank { "Lagu" }
+
+            var albumTitle = ""
+            var albumBrowseId: String? = null
+            if (flexCols.length() > 1) {
+                val runs = flexCols.optJSONObject(1)
+                    ?.optJSONObject("musicResponsiveListItemFlexColumnRenderer")
+                    ?.optJSONObject("text")
+                    ?.optJSONArray("runs")
+                if (runs != null) {
+                    for (i in 0 until runs.length()) {
+                        val r = runs.optJSONObject(i) ?: continue
+                        val bId = r.optJSONObject("navigationEndpoint")?.optJSONObject("browseEndpoint")?.optString("browseId")
+                        if (!bId.isNullOrBlank() && bId.startsWith("MPRE")) {
+                            albumBrowseId = bId
+                            albumTitle = r.optString("text") ?: ""
+                        }
+                    }
+                }
+            }
+
+            var durationMs = 0L
+            val fixedCols = item.optJSONArray("fixedColumns")
+            if (fixedCols != null && fixedCols.length() > 0) {
+                val durStr = extractRunsText(
+                    fixedCols.optJSONObject(0)
+                        ?.optJSONObject("musicResponsiveListItemFixedColumnRenderer")
+                        ?.optJSONObject("text")
+                )
+                if (durStr.isNotBlank()) durationMs = parseDurationMs(durStr)
+            }
+
+            val thumbObj = item.optJSONObject("thumbnail")
+                ?.optJSONObject("musicThumbnailRenderer")
+                ?.optJSONObject("thumbnail")
+            val thumbs = thumbObj?.optJSONArray("thumbnails")
+            var songThumb: String? = null
+            if (thumbs != null && thumbs.length() > 0) {
+                val lastThumb = thumbs.optJSONObject(thumbs.length() - 1)
+                songThumb = upgradeThumbnailUrl(lastThumb?.optString("url"))
+            }
+
+            topSongs.add(
+                Song(
+                    id = "yt_$videoId",
+                    title = title,
+                    artist = artistName,
+                    album = albumTitle,
+                    durationMs = durationMs,
+                    thumbnailUrl = songThumb ?: artistThumbnailUrl,
+                    contentUri = null,
+                    dateAdded = 0L,
+                    albumId = 0L,
+                    videoId = videoId,
+                    artistBrowseId = browseId,
+                    albumBrowseId = albumBrowseId
+                )
+            )
+        }
+
+        // Cari carousels untuk Album dan Single
+        val carousels = mutableListOf<JSONObject>()
+        findAllObjectsNamed(rootJson, "musicCarouselShelfRenderer", carousels)
+
+        val albums = mutableListOf<AlbumSearchResult>()
+        val singles = mutableListOf<AlbumSearchResult>()
+
+        for (carousel in carousels) {
+            val headerTitle = extractRunsText(
+                carousel.optJSONObject("header")
+                    ?.optJSONObject("musicCarouselShelfBasicHeaderRenderer")
+                    ?.optJSONObject("title")
+            ).lowercase(Locale.ROOT)
+
+            val twoRowItems = mutableListOf<JSONObject>()
+            findAllObjectsNamed(carousel, "musicTwoRowItemRenderer", twoRowItems)
+
+            val isSingleShelf = headerTitle.contains("single") || headerTitle.contains("singel") || headerTitle.contains("ep")
+
+            for (twoRow in twoRowItems) {
+                val itemTitle = extractRunsText(twoRow.optJSONObject("title"))
+                val subtitle = extractRunsText(twoRow.optJSONObject("subtitle"))
+                val itemBrowseId = twoRow.optJSONObject("navigationEndpoint")
+                    ?.optJSONObject("browseEndpoint")
+                    ?.optString("browseId")
+                    ?: findBrowseEndpointWithPrefix(twoRow, "MPRE")
+
+                if (itemBrowseId.isNullOrBlank() || itemTitle.isBlank()) continue
+
+                val year = Regex("""\b(19\d{2}|20\d{2})\b""").find(subtitle)?.value
+
+                val thumbObj = twoRow.optJSONObject("thumbnailRenderer")
+                    ?.optJSONObject("musicThumbnailRenderer")
+                    ?.optJSONObject("thumbnail")
+                val thumbs = thumbObj?.optJSONArray("thumbnails")
+                var thumbUrl: String? = null
+                if (thumbs != null && thumbs.length() > 0) {
+                    val lastThumb = thumbs.optJSONObject(thumbs.length() - 1)
+                    thumbUrl = upgradeThumbnailUrl(lastThumb?.optString("url"))
+                }
+
+                val albumItem = AlbumSearchResult(
+                    browseId = itemBrowseId,
+                    title = itemTitle,
+                    artist = artistName,
+                    year = year,
+                    thumbnailUrl = thumbUrl
+                )
+
+                if (isSingleShelf) {
+                    singles.add(albumItem)
+                } else {
+                    albums.add(albumItem)
+                }
+            }
+        }
+
+        return ArtistDetails(
+            browseId = browseId,
+            name = artistName,
+            thumbnailUrl = artistThumbnailUrl,
+            listeners = listeners,
+            topSongs = topSongs,
+            albums = albums,
+            singles = singles
+        )
+    }
+
+    /**
+     * Mengekstrak teks dari runs JSON.
+     */
+    private fun extractRunsText(obj: JSONObject?): String {
+        if (obj == null) return ""
+        val runs = obj.optJSONArray("runs")
+        if (runs != null && runs.length() > 0) {
+            val sb = StringBuilder()
+            for (i in 0 until runs.length()) {
+                sb.append(runs.optJSONObject(i)?.optString("text") ?: "")
+            }
+            return sb.toString().trim()
+        }
+        return obj.optString("simpleText").trim()
+    }
+
+    /**
+     * Mencari browseId dengan awalan tertentu secara rekursif.
+     */
+    private fun findBrowseEndpointWithPrefix(json: Any, prefix: String): String? {
+        when (json) {
+            is JSONObject -> {
+                val bId = json.optJSONObject("navigationEndpoint")
+                    ?.optJSONObject("browseEndpoint")
+                    ?.optString("browseId")
+                if (!bId.isNullOrBlank() && bId.startsWith(prefix)) {
+                    return bId
+                }
+                val directBId = json.optJSONObject("browseEndpoint")?.optString("browseId")
+                if (!directBId.isNullOrBlank() && directBId.startsWith(prefix)) {
+                    return directBId
+                }
+                val keys = json.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    val child = json.opt(key) ?: continue
+                    val res = findBrowseEndpointWithPrefix(child, prefix)
+                    if (res != null) return res
+                }
+            }
+            is JSONArray -> {
+                for (i in 0 until json.length()) {
+                    val child = json.opt(i) ?: continue
+                    val res = findBrowseEndpointWithPrefix(child, prefix)
+                    if (res != null) return res
+                }
+            }
+        }
+        return null
+    }
+
+    /**
+     * Mencari objek pertama dengan nama tertentu secara rekursif.
+     */
+    private fun findFirstObjectNamed(json: Any, names: Set<String>): JSONObject? {
+        when (json) {
+            is JSONObject -> {
+                for (name in names) {
+                    val target = json.optJSONObject(name)
+                    if (target != null) return target
+                }
+                val keys = json.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    val child = json.opt(key) ?: continue
+                    val res = findFirstObjectNamed(child, names)
+                    if (res != null) return res
+                }
+            }
+            is JSONArray -> {
+                for (i in 0 until json.length()) {
+                    val child = json.opt(i) ?: continue
+                    val res = findFirstObjectNamed(child, names)
+                    if (res != null) return res
+                }
+            }
+        }
+        return null
+    }
+
+    /**
+     * Mencari semua objek bernama targetName secara rekursif.
+     */
+    private fun findAllObjectsNamed(json: Any, targetName: String, results: MutableList<JSONObject>) {
+        when (json) {
+            is JSONObject -> {
+                val target = json.optJSONObject(targetName)
+                if (target != null) {
+                    results.add(target)
+                }
+                val keys = json.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    val child = json.opt(key) ?: continue
+                    findAllObjectsNamed(child, targetName, results)
+                }
+            }
+            is JSONArray -> {
+                for (i in 0 until json.length()) {
+                    val child = json.opt(i) ?: continue
+                    findAllObjectsNamed(child, targetName, results)
+                }
+            }
         }
     }
 }

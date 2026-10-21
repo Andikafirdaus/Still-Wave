@@ -48,13 +48,17 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.still_wave_music_player.data.model.AlbumSearchResult
+import com.example.still_wave_music_player.data.model.ArtistSearchResult
 import com.example.still_wave_music_player.data.model.Song
 import com.example.still_wave_music_player.ui.components.AppIcons
 import com.example.still_wave_music_player.ui.components.LibraryStateView
+import com.example.still_wave_music_player.ui.components.ThumbnailArt
 import com.example.still_wave_music_player.ui.theme.Accent
 import com.example.still_wave_music_player.ui.theme.Background
 import com.example.still_wave_music_player.ui.theme.Border
@@ -64,14 +68,16 @@ import com.example.still_wave_music_player.ui.theme.TextMuted
 import com.example.still_wave_music_player.ui.theme.TextPrimary
 import com.example.still_wave_music_player.ui.theme.TextSecondary
 import com.example.still_wave_music_player.viewmodels.LibraryUiState
+import com.example.still_wave_music_player.viewmodels.OnlineSearchCategory
 import com.example.still_wave_music_player.viewmodels.OnlineSearchUiState
 import com.example.still_wave_music_player.viewmodels.OnlineSearchViewModel
 
 /**
  * Layar Cari:
- * - Dua chip penyaring sumber: "Di HP" dan "Online" (solid, chip aktif warna aksen, animasi spring).
+ * - Dua chip penyaring sumber: "Di HP" dan "Online".
+ * - Saat "Online" aktif: chip tab kategori "Lagu | Artis | Album".
  * - "Di HP": mencari dari lagu lokal perangkat.
- * - "Online": mencari lagu dari YouTube Music dengan debounce 500 ms.
+ * - "Online": mencari lagu, artis, atau album dari YouTube Music.
  */
 @Composable
 fun SearchScreen(
@@ -79,6 +85,8 @@ fun SearchScreen(
     requiredPermission: String,
     onPermissionGranted: () -> Unit,
     onPlaySong: (Song, List<Song>) -> Unit = { _, _ -> },
+    onNavigateToArtist: (String) -> Unit = {},
+    onNavigateToAlbum: (String) -> Unit = {},
     onlineSearchViewModel: OnlineSearchViewModel = viewModel()
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -89,6 +97,7 @@ fun SearchScreen(
     var selectedTab by rememberSaveable { mutableStateOf("Di HP") }
 
     val onlineState by onlineSearchViewModel.uiState.collectAsStateWithLifecycle()
+    val selectedCategory by onlineSearchViewModel.selectedCategory.collectAsStateWithLifecycle()
 
     // Tutup keyboard saat daftar digulir
     LaunchedEffect(listState.isScrollInProgress) {
@@ -151,7 +160,7 @@ fun SearchScreen(
                     }
                 )
 
-                // Chip pilihan sumber pencarian
+                // Chip pilihan sumber pencarian: Di HP | Online
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -174,6 +183,24 @@ fun SearchScreen(
                             }
                         }
                     )
+                }
+
+                // Jika mode Online, tampilkan chip kategori: Lagu | Artis | Album
+                if (selectedTab == "Online") {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OnlineSearchCategory.entries.forEach { cat ->
+                            SearchCategoryChip(
+                                label = cat.label,
+                                isSelected = selectedCategory == cat,
+                                onClick = {
+                                    onlineSearchViewModel.setCategory(cat)
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -259,7 +286,7 @@ fun SearchScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "Ketik judul lagu atau nama artis",
+                                text = "Ketik judul lagu, artis, atau album",
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontSize = 15.sp,
                                     color = TextMuted
@@ -352,7 +379,142 @@ fun SearchScreen(
                         )
                     }
                 }
+                is OnlineSearchUiState.BerisiArtis -> {
+                    items(state.daftar, key = { it.browseId }) { artist ->
+                        ArtistRowItem(
+                            artist = artist,
+                            onClick = { onNavigateToArtist(artist.browseId) },
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+                }
+                is OnlineSearchUiState.BerisiAlbum -> {
+                    items(state.daftar, key = { it.browseId }) { album ->
+                        AlbumRowItem(
+                            album = album,
+                            onClick = { onNavigateToAlbum(album.browseId) },
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+                }
             }
+        }
+    }
+}
+
+/**
+ * Baris hasil pencarian artis: foto bulat, nama, dan teks "Artis".
+ */
+@Composable
+private fun ArtistRowItem(
+    artist: ArtistSearchResult,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        ThumbnailArt(
+            thumbnailUrl = artist.thumbnailUrl,
+            contentDescription = "Foto ${artist.name}",
+            modifier = Modifier.size(52.dp),
+            shape = CircleShape
+        )
+
+        Spacer(modifier = Modifier.width(14.dp))
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = artist.name,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(3.dp))
+
+            Text(
+                text = "Artis",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 12.sp,
+                    color = TextSecondary
+                ),
+                maxLines = 1
+            )
+        }
+    }
+}
+
+/**
+ * Baris hasil pencarian album: sampul persegi, judul, artis dan tahun.
+ */
+@Composable
+private fun AlbumRowItem(
+    album: AlbumSearchResult,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        ThumbnailArt(
+            thumbnailUrl = album.thumbnailUrl,
+            contentDescription = "Sampul ${album.title}",
+            modifier = Modifier.size(52.dp),
+            shape = RoundedCornerShape(8.dp)
+        )
+
+        Spacer(modifier = Modifier.width(14.dp))
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = album.title,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(3.dp))
+
+            val subtitle = if (!album.year.isNullOrBlank()) {
+                "${album.artist} • ${album.year}"
+            } else {
+                album.artist
+            }
+
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 12.sp,
+                    color = TextSecondary
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -401,6 +563,56 @@ private fun SearchSourceChip(
             style = MaterialTheme.typography.labelMedium.copy(
                 fontSize = 13.sp,
                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                color = textColor
+            )
+        )
+    }
+}
+
+/**
+ * Chip kategori pencarian online (Lagu | Artis | Album).
+ */
+@Composable
+private fun SearchCategoryChip(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(10.dp)
+    val targetBgColor = if (isSelected) Accent else SurfaceHigh
+    val targetTextColor = if (isSelected) TextPrimary else TextSecondary
+
+    val bgColor by animateColorAsState(
+        targetValue = targetBgColor,
+        animationSpec = spring(
+            dampingRatio = Motion.Standard.dampingRatio,
+            stiffness = Motion.Standard.stiffness
+        ),
+        label = "cat_chip_bg_${label}"
+    )
+
+    val textColor by animateColorAsState(
+        targetValue = targetTextColor,
+        animationSpec = spring(
+            dampingRatio = Motion.Standard.dampingRatio,
+            stiffness = Motion.Standard.stiffness
+        ),
+        label = "cat_chip_text_${label}"
+    )
+
+    Box(
+        modifier = Modifier
+            .clip(shape)
+            .background(bgColor)
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontSize = 12.sp,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                 color = textColor
             )
         )

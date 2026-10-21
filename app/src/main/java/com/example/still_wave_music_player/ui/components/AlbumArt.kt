@@ -130,3 +130,48 @@ fun AlbumArt(
         }
     }
 }
+
+/**
+ * Komponen untuk menampilkan thumbnail online dengan fallback warna solid.
+ */
+@Composable
+fun ThumbnailArt(
+    thumbnailUrl: String?,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(12.dp),
+    fallbackColor: androidx.compose.ui.graphics.Color = com.example.still_wave_music_player.ui.theme.SurfaceHigh
+) {
+    val context = LocalContext.current
+    val isOnline = thumbnailUrl?.startsWith("http") == true
+
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(fallbackColor),
+        contentAlignment = Alignment.Center
+    ) {
+        if (isOnline) {
+            var isLoaded by remember(thumbnailUrl) { mutableStateOf(false) }
+            val alpha by animateFloatAsState(
+                targetValue = if (isLoaded) 1f else 0f,
+                animationSpec = tween(durationMillis = 180),
+                label = "ThumbnailFade"
+            )
+
+            AsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(thumbnailUrl)
+                    .crossfade(180)
+                    .build(),
+                contentDescription = contentDescription,
+                contentScale = ContentScale.Crop,
+                onSuccess = { isLoaded = true },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(shape)
+                    .graphicsLayer { this.alpha = alpha }
+            )
+        }
+    }
+}

@@ -40,6 +40,8 @@ import com.example.still_wave_music_player.ui.components.FloatingNavBar
 import com.example.still_wave_music_player.ui.components.MiniPlayer
 import com.example.still_wave_music_player.ui.components.SettingsSheet
 import com.example.still_wave_music_player.ui.navigation.Screen
+import com.example.still_wave_music_player.ui.screens.AlbumScreen
+import com.example.still_wave_music_player.ui.screens.ArtistScreen
 import com.example.still_wave_music_player.ui.screens.ExploreScreen
 import com.example.still_wave_music_player.ui.screens.HomeScreen
 import com.example.still_wave_music_player.ui.screens.LibraryScreen
@@ -49,10 +51,11 @@ import com.example.still_wave_music_player.ui.theme.Background
 import com.example.still_wave_music_player.ui.theme.Motion
 import com.example.still_wave_music_player.viewmodels.LibraryViewModel
 import com.example.still_wave_music_player.viewmodels.PlayerViewModel
+import com.example.still_wave_music_player.viewmodels.QueueSource
 
 /**
  * Root composable aplikasi (AppRoot).
- * Berisi NavHost dengan 4 rute utama, FloatingNavBar melayang di bagian bawah,
+ * Berisi NavHost dengan rute utama dan rute rincian (Artis, Album), FloatingNavBar melayang di bagian bawah,
  * MiniPlayer di atas FloatingNavBar, dan PlayerScreen sebagai lapisan penuh di atasnya.
  * Menyediakan satu instance LibraryViewModel dan PlayerViewModel yang dibagikan ke semua layar,
  * serta meminta izin POST_NOTIFICATIONS pada Android 13+ saat pertama kali memutar lagu.
@@ -66,6 +69,13 @@ fun AppRoot(
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Beranda.route
+
+    val isMainTab = currentRoute in listOf(
+        Screen.Beranda.route,
+        Screen.Jelajah.route,
+        Screen.Pustaka.route,
+        Screen.Cari.route
+    )
 
     val playerState by playerViewModel.uiState.collectAsStateWithLifecycle()
     val lyricsState by playerViewModel.lyricsState.collectAsStateWithLifecycle()
@@ -154,12 +164,53 @@ fun AppRoot(
                     libraryState = libraryState,
                     requiredPermission = libraryViewModel.getRequiredPermission(),
                     onPermissionGranted = libraryViewModel::muat,
-                    onPlaySong = handlePlaySong
+                    onPlaySong = handlePlaySong,
+                    onNavigateToArtist = { browseId ->
+                        navController.navigate(Screen.Artis.createRoute(browseId))
+                    },
+                    onNavigateToAlbum = { browseId ->
+                        navController.navigate(Screen.Album.createRoute(browseId))
+                    }
+                )
+            }
+            composable(Screen.Artis.route) { backStackEntry ->
+                val browseId = backStackEntry.arguments?.getString("browseId") ?: return@composable
+                ArtistScreen(
+                    browseId = browseId,
+                    onBack = { navController.popBackStack() },
+                    onPlaySong = { song, list ->
+                        requestNotificationPermissionIfNeeded()
+                        playerViewModel.putar(song, list, QueueSource.LIST)
+                    },
+                    onPlayRadio = { song ->
+                        requestNotificationPermissionIfNeeded()
+                        playerViewModel.putar(song, listOf(song), QueueSource.RADIO)
+                    },
+                    onNavigateToAlbum = { albumBrowseId ->
+                        navController.navigate(Screen.Album.createRoute(albumBrowseId))
+                    }
+                )
+            }
+            composable(Screen.Album.route) { backStackEntry ->
+                val browseId = backStackEntry.arguments?.getString("browseId") ?: return@composable
+                AlbumScreen(
+                    browseId = browseId,
+                    onBack = { navController.popBackStack() },
+                    onPlaySongs = { songs, index ->
+                        if (songs.isNotEmpty()) {
+                            requestNotificationPermissionIfNeeded()
+                            val targetSong = songs[index.coerceIn(0, songs.lastIndex)]
+                            playerViewModel.putar(targetSong, songs, QueueSource.LIST)
+                        }
+                    },
+                    onNavigateToArtist = { artistBrowseId ->
+                        navController.navigate(Screen.Artis.createRoute(artistBrowseId))
+                    }
                 )
             }
         }
 
-        // ── 2. Mini Player Melayang (8dp di atas FloatingNavBar) ───────────────
+        // ── 2. Mini Player Melayang (di atas bar navigasi bila bar tampil) ───────
         MiniPlayer(
             song = playerState.currentSong,
             isPlaying = playerState.isPlaying,
@@ -173,28 +224,30 @@ fun AppRoot(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = 84.dp)
+                .padding(bottom = if (isMainTab) 84.dp else 12.dp)
         )
 
         // ── 3. Bar Navigasi Bawah Melayang (FloatingNavBar) ───────────────────
-        FloatingNavBar(
-            currentRoute = currentRoute,
-            onNavigateToTab = { screen ->
-                if (currentRoute != screen.route) {
-                    navController.navigate(screen.route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
+        if (isMainTab) {
+            FloatingNavBar(
+                currentRoute = currentRoute,
+                onNavigateToTab = { screen ->
+                    if (currentRoute != screen.route) {
+                        navController.navigate(screen.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
                         }
-                        launchSingleTop = true
-                        restoreState = true
                     }
-                }
-            },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(bottom = 12.dp)
-        )
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 12.dp)
+            )
+        }
 
         // ── 4. Layar Pemutar Penuh (PlayerScreen) sebagai Lapisan di Atas ──────
         AnimatedVisibility(
@@ -245,7 +298,15 @@ fun AppRoot(
                     onSeek = playerViewModel::geserProgres,
                     onSeekToPosition = playerViewModel::seekToPosition,
                     onToggleShuffle = playerViewModel::toggleAcak,
-                    onChangeRepeatMode = playerViewModel::gantiModeUlang
+                    onChangeRepeatMode = playerViewModel::gantiModeUlang,
+                    onNavigateToArtist = { browseId ->
+                        isPlayerOpen = false
+                        navController.navigate(Screen.Artis.createRoute(browseId))
+                    },
+                    onNavigateToAlbum = { browseId ->
+                        isPlayerOpen = false
+                        navController.navigate(Screen.Album.createRoute(browseId))
+                    }
                 )
             }
         }

@@ -111,6 +111,8 @@ fun PlayerScreen(
     onSeekToPosition: (Long) -> Unit = {},
     onToggleShuffle: () -> Unit,
     onChangeRepeatMode: () -> Unit,
+    onNavigateToArtist: (String) -> Unit = {},
+    onNavigateToAlbum: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // Tombol Back sistem menutup pemutar lebih dulu
@@ -256,11 +258,30 @@ fun PlayerScreen(
                 text = song.artist,
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontSize = 15.sp,
-                    color = TextSecondary
+                    color = if (song.artistBrowseId != null) Accent else TextSecondary
                 ),
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.clickable(enabled = song.artistBrowseId != null) {
+                    song.artistBrowseId?.let { onNavigateToArtist(it) }
+                }
             )
+
+            if (!song.album.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(
+                    text = song.album,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 13.sp,
+                        color = if (song.albumBrowseId != null) Accent else TextMuted
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.clickable(enabled = song.albumBrowseId != null) {
+                        song.albumBrowseId?.let { onNavigateToAlbum(it) }
+                    }
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
