@@ -17,7 +17,9 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.example.still_wave_music_player.data.model.LyricsUiState
 import com.example.still_wave_music_player.data.model.Song
+import com.example.still_wave_music_player.data.remote.YouTubeMusicApi
 import com.example.still_wave_music_player.data.repository.LyricsRepository
+import com.example.still_wave_music_player.data.repository.SettingsRepository
 import com.example.still_wave_music_player.playback.MusicService
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.Dispatchers
@@ -29,12 +31,21 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.Collections
 
 /**
  * Mode pengulangan pemutar lagu.
  */
 enum class RepeatMode {
     OFF, ALL, ONE
+}
+
+/**
+ * Penanda sumber antrean pemutaran lagu.
+ */
+enum class QueueSource {
+    SINGLE_ONLINE, COLLECTION
 }
 
 /**
@@ -65,6 +76,22 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val lyricsState: StateFlow<LyricsUiState> = _lyricsState.asStateFlow()
     private var lyricsJob: Job? = null
     private var lastLyricsSongId: String? = null
+
+    private val settingsRepository = SettingsRepository.getInstance(application)
+    val isAutoRadioEnabled: StateFlow<Boolean> = settingsRepository.isAutoRadioEnabled
+    val crossfadeSeconds: StateFlow<Int> = settingsRepository.crossfadeSeconds
+
+    fun setAutoRadioEnabled(enabled: Boolean) {
+        settingsRepository.setAutoRadioEnabled(enabled)
+    }
+
+    fun setCrossfadeSeconds(seconds: Int) {
+        settingsRepository.setCrossfadeSeconds(seconds)
+    }
+
+    private var queueSource: QueueSource = QueueSource.COLLECTION
+    private val playedVideoIds: MutableSet<String> = Collections.synchronizedSet(mutableSetOf())
+    private var isFetchingRadio = false
 
     private var mediaController: MediaController? = null
     private var controllerFuture: ListenableFuture<MediaController>? = null
@@ -115,6 +142,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 )
             }
 
+            matchedSong?.videoId?.let { playedVideoIds.add(it) }
             loadLyricsForSong(matchedSong)
 
             _uiState.update {
@@ -124,6 +152,19 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     currentPositionMs = 0L,
                     isBuffering = false
                 )
+            }
+
+            // Cek kebutuhan penambahan radio otomatis saat sisa antrean <= 2
+            if (queueSource == QueueSource.SINGLE_ONLINE && settingsRepository.isAutoRadioEnabled.value && _uiState.value.repeatMode != RepeatMode.ONE) {
+                mediaController?.let { controller ->
+                    val remaining = controller.mediaItemCount - controller.currentMediaItemIndex - 1
+                    if (remaining <= 2 && !isFetchingRadio) {
+                        val lastVideoId = _uiState.value.queue.lastOrNull { !it.videoId.isNullOrBlank() }?.videoId ?: matchedSong?.videoId
+                        if (lastVideoId != null) {
+                            fetchAndAppendRadio(lastVideoId)
+                        }
+                    }
+                }
             }
         }
 
@@ -312,56 +353,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             Log.d("MusikPlayer", "putar() dipanggil lagu online videoId=$onlineVideoId antrean=${playableSongs.size}")
         }
 
+        val isSingleOnline = (daftar.isEmpty() || daftar.size == 1) && !song.videoId.isNullOrBlank()
+        queueSource = if (isSingleOnline) QueueSource.SINGLE_ONLINE else QueueSource.COLLECTION
+        song.videoId?.let { playedVideoIds.add(it) }
+
         val initialIndex = playableSongs.indexOfFirst {
             it.id == song.id || (!it.videoId.isNullOrEmpty() && it.videoId == song.videoId)
         }.let { if (it == -1) 0 else it }
 
-        val mediaItems = playableSongs.map { s ->
-            if (!s.videoId.isNullOrEmpty() && s.contentUri.isNullOrEmpty()) {
-                // Lagu online YouTube Music
-                val metaBuilder = MediaMetadata.Builder()
-                    .setTitle(s.title)
-                    .setArtist(s.artist)
-
-                if (!s.album.isNullOrBlank()) {
-                    metaBuilder.setAlbumTitle(s.album)
-                }
-                if (!s.thumbnailUrl.isNullOrBlank()) {
-                    metaBuilder.setArtworkUri(Uri.parse(s.thumbnailUrl))
-                }
-
-                val onlineUri = Uri.parse("ytm://${s.videoId}")
-                MediaItem.Builder()
-                    .setMediaId(s.videoId)
-                    .setUri(onlineUri)
-                    .setRequestMetadata(
-                        MediaItem.RequestMetadata.Builder()
-                            .setMediaUri(onlineUri)
-                            .build()
-                    )
-                    .setMediaMetadata(metaBuilder.build())
-                    .build()
-            } else {
-                // Lagu lokal (kode lama tidak diubah)
-                val localUri = Uri.parse(s.contentUri ?: "")
-                MediaItem.Builder()
-                    .setMediaId(s.id)
-                    .setUri(localUri)
-                    .setRequestMetadata(
-                        MediaItem.RequestMetadata.Builder()
-                            .setMediaUri(localUri)
-                            .build()
-                    )
-                    .setMediaMetadata(
-                        MediaMetadata.Builder()
-                            .setTitle(s.title)
-                            .setArtist(s.artist)
-                            .setAlbumTitle(s.album)
-                            .build()
-                    )
-                    .build()
-            }
-        }
+        val mediaItems = playableSongs.map { createMediaItem(it) }
 
         val targetSong = playableSongs[initialIndex]
         loadLyricsForSong(targetSong)
@@ -389,6 +389,86 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 controller.setMediaItems(mediaItems, initialIndex, 0L)
                 controller.prepare()
                 controller.play()
+            }
+        }
+
+        if (isSingleOnline && settingsRepository.isAutoRadioEnabled.value) {
+            song.videoId?.let { fetchAndAppendRadio(it) }
+        }
+    }
+
+    private fun createMediaItem(s: Song): MediaItem {
+        return if (!s.videoId.isNullOrEmpty() && s.contentUri.isNullOrEmpty()) {
+            val metaBuilder = MediaMetadata.Builder()
+                .setTitle(s.title)
+                .setArtist(s.artist)
+
+            if (!s.album.isNullOrBlank()) {
+                metaBuilder.setAlbumTitle(s.album)
+            }
+            if (!s.thumbnailUrl.isNullOrBlank()) {
+                metaBuilder.setArtworkUri(Uri.parse(s.thumbnailUrl))
+            }
+
+            val onlineUri = Uri.parse("ytm://${s.videoId}")
+            MediaItem.Builder()
+                .setMediaId(s.videoId)
+                .setUri(onlineUri)
+                .setRequestMetadata(
+                    MediaItem.RequestMetadata.Builder()
+                        .setMediaUri(onlineUri)
+                        .build()
+                )
+                .setMediaMetadata(metaBuilder.build())
+                .build()
+        } else {
+            val localUri = Uri.parse(s.contentUri ?: "")
+            MediaItem.Builder()
+                .setMediaId(s.id)
+                .setUri(localUri)
+                .setRequestMetadata(
+                    MediaItem.RequestMetadata.Builder()
+                        .setMediaUri(localUri)
+                        .build()
+                )
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setTitle(s.title)
+                        .setArtist(s.artist)
+                        .setAlbumTitle(s.album)
+                        .build()
+                )
+                .build()
+        }
+    }
+
+    private fun fetchAndAppendRadio(seedVideoId: String) {
+        if (isFetchingRadio) return
+        isFetchingRadio = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val radioResult = YouTubeMusicApi.radio(seedVideoId)
+                val radioSongs = radioResult.getOrNull().orEmpty()
+                val currentQueueVideoIds = _uiState.value.queue.mapNotNull { it.videoId }.toSet()
+
+                val newSongs = radioSongs.filter { song ->
+                    val vId = song.videoId
+                    !vId.isNullOrBlank() && !playedVideoIds.contains(vId) && !currentQueueVideoIds.contains(vId)
+                }
+
+                if (newSongs.isNotEmpty()) {
+                    val newMediaItems = newSongs.map { createMediaItem(it) }
+                    withContext(Dispatchers.Main) {
+                        withController { controller ->
+                            controller.addMediaItems(newMediaItems)
+                            _uiState.update { it.copy(queue = it.queue + newSongs) }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("MusikPlayer", "Gagal memuat auto radio untuk videoId=$seedVideoId: ${e.message}")
+            } finally {
+                isFetchingRadio = false
             }
         }
     }

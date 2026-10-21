@@ -56,7 +56,8 @@ fun HomeScreen(
     libraryState: LibraryUiState,
     requiredPermission: String,
     onPermissionGranted: () -> Unit,
-    onPlaySong: (Song, List<Song>) -> Unit = { _, _ -> }
+    onPlaySong: (Song, List<Song>) -> Unit = { _, _ -> },
+    onOpenSettings: () -> Unit = {}
 ) {
     val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
@@ -78,17 +79,34 @@ fun HomeScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(28.dp)
             ) {
-                // ── Judul Utama ───────────────────────────────────────────────────────
+                // ── Judul Utama & Tombol Pengaturan ───────────────────────────────────
                 item {
-                    Text(
-                        text = "Beranda",
-                        style = MaterialTheme.typography.headlineLarge.copy(
-                            fontSize = 30.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        ),
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Beranda",
+                            style = MaterialTheme.typography.headlineLarge.copy(
+                                fontSize = 30.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        )
+                        IconButton(
+                            onClick = onOpenSettings,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = AppIcons.Settings,
+                                contentDescription = "Pengaturan",
+                                tint = TextSecondary
+                            )
+                        }
+                    }
                 }
 
                 // ── Bagian: Baru ditambahkan ──────────────────────────────────────────
@@ -153,15 +171,32 @@ fun HomeScreen(
                         bottom = 164.dp + bottomInset
                     )
             ) {
-                Text(
-                    text = "Beranda",
-                    style = MaterialTheme.typography.headlineLarge.copy(
-                        fontSize = 30.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    ),
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Beranda",
+                        style = MaterialTheme.typography.headlineLarge.copy(
+                            fontSize = 30.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    )
+                    IconButton(
+                        onClick = onOpenSettings,
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = AppIcons.Settings,
+                            contentDescription = "Pengaturan",
+                            tint = TextSecondary
+                        )
+                    }
+                }
 
                 Box(
                     modifier = Modifier

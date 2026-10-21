@@ -20,6 +20,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.still_wave_music_player.data.model.Song
+import com.example.still_wave_music_player.ui.components.AppIcons
 import com.example.still_wave_music_player.ui.components.LibraryStateView
 import com.example.still_wave_music_player.ui.theme.Background
 import com.example.still_wave_music_player.ui.theme.Border
@@ -56,7 +62,8 @@ fun LibraryScreen(
     libraryState: LibraryUiState,
     requiredPermission: String,
     onPermissionGranted: () -> Unit,
-    onPlaySong: (Song, List<Song>) -> Unit = { _, _ -> }
+    onPlaySong: (Song, List<Song>) -> Unit = { _, _ -> },
+    onOpenSettings: () -> Unit = {}
 ) {
     val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val filterOptions = listOf("Daftar putar", "Artis", "Album")
@@ -77,28 +84,46 @@ fun LibraryScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Judul Utama dan Jumlah Lagu
+                // Judul Utama, Jumlah Lagu, dan Tombol Pengaturan
                 item {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Pustaka",
-                            style = MaterialTheme.typography.headlineLarge.copy(
-                                fontSize = 30.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = "Pustaka",
+                                style = MaterialTheme.typography.headlineLarge.copy(
+                                    fontSize = 30.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
                             )
-                        )
 
-                        Text(
-                            text = "${songs.size} lagu",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = 15.sp,
-                                color = TextSecondary
+                            Text(
+                                text = "${songs.size} lagu",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = 15.sp,
+                                    color = TextSecondary
+                                )
                             )
-                        )
+                        }
+
+                        IconButton(
+                            onClick = onOpenSettings,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = AppIcons.Settings,
+                                contentDescription = "Pengaturan",
+                                tint = TextSecondary
+                            )
+                        }
                     }
                 }
 

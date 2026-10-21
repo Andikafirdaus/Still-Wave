@@ -38,6 +38,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.still_wave_music_player.data.model.Song
 import com.example.still_wave_music_player.ui.components.FloatingNavBar
 import com.example.still_wave_music_player.ui.components.MiniPlayer
+import com.example.still_wave_music_player.ui.components.SettingsSheet
 import com.example.still_wave_music_player.ui.navigation.Screen
 import com.example.still_wave_music_player.ui.screens.ExploreScreen
 import com.example.still_wave_music_player.ui.screens.HomeScreen
@@ -68,8 +69,12 @@ fun AppRoot(
 
     val playerState by playerViewModel.uiState.collectAsStateWithLifecycle()
     val lyricsState by playerViewModel.lyricsState.collectAsStateWithLifecycle()
+    val isAutoRadioEnabled by playerViewModel.isAutoRadioEnabled.collectAsStateWithLifecycle()
+    val crossfadeSeconds by playerViewModel.crossfadeSeconds.collectAsStateWithLifecycle()
     val libraryState by libraryViewModel.uiState.collectAsStateWithLifecycle()
+
     var isPlayerOpen by rememberSaveable { mutableStateOf(false) }
+    var isSettingsOpen by rememberSaveable { mutableStateOf(false) }
 
     // State dan launcher untuk izin POST_NOTIFICATIONS (Android 13+)
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
@@ -128,7 +133,8 @@ fun AppRoot(
                     libraryState = libraryState,
                     requiredPermission = libraryViewModel.getRequiredPermission(),
                     onPermissionGranted = libraryViewModel::muat,
-                    onPlaySong = handlePlaySong
+                    onPlaySong = handlePlaySong,
+                    onOpenSettings = { isSettingsOpen = true }
                 )
             }
             composable(Screen.Jelajah.route) {
@@ -139,7 +145,8 @@ fun AppRoot(
                     libraryState = libraryState,
                     requiredPermission = libraryViewModel.getRequiredPermission(),
                     onPermissionGranted = libraryViewModel::muat,
-                    onPlaySong = handlePlaySong
+                    onPlaySong = handlePlaySong,
+                    onOpenSettings = { isSettingsOpen = true }
                 )
             }
             composable(Screen.Cari.route) {
@@ -241,6 +248,17 @@ fun AppRoot(
                     onChangeRepeatMode = playerViewModel::gantiModeUlang
                 )
             }
+        }
+
+        // ── 5. Bottom Sheet Pengaturan ───────────────────────────────────────
+        if (isSettingsOpen) {
+            SettingsSheet(
+                isAutoRadioEnabled = isAutoRadioEnabled,
+                onAutoRadioChanged = playerViewModel::setAutoRadioEnabled,
+                crossfadeSeconds = crossfadeSeconds,
+                onCrossfadeChanged = playerViewModel::setCrossfadeSeconds,
+                onDismiss = { isSettingsOpen = false }
+            )
         }
     }
 }
