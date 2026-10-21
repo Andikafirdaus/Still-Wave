@@ -67,6 +67,7 @@ fun AppRoot(
     val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Beranda.route
 
     val playerState by playerViewModel.uiState.collectAsStateWithLifecycle()
+    val lyricsState by playerViewModel.lyricsState.collectAsStateWithLifecycle()
     val libraryState by libraryViewModel.uiState.collectAsStateWithLifecycle()
     var isPlayerOpen by rememberSaveable { mutableStateOf(false) }
 
@@ -222,6 +223,8 @@ fun AppRoot(
                     song = song,
                     isPlaying = playerState.isPlaying,
                     progress = playerState.progress,
+                    currentPositionMs = playerState.currentPositionMs,
+                    lyricsState = lyricsState,
                     isBuffering = playerState.isBuffering,
                     isShuffle = playerState.isShuffle,
                     repeatMode = playerState.repeatMode,
@@ -233,6 +236,7 @@ fun AppRoot(
                     onNext = playerViewModel::berikutnya,
                     onPrevious = playerViewModel::sebelumnya,
                     onSeek = playerViewModel::geserProgres,
+                    onSeekToPosition = playerViewModel::seekToPosition,
                     onToggleShuffle = playerViewModel::toggleAcak,
                     onChangeRepeatMode = playerViewModel::gantiModeUlang
                 )

@@ -41,15 +41,23 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -57,10 +65,12 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.still_wave_music_player.data.model.LyricsUiState
 import com.example.still_wave_music_player.data.model.Song
 import com.example.still_wave_music_player.ui.components.AlbumArt
 import com.example.still_wave_music_player.ui.components.AppIcons
@@ -69,6 +79,7 @@ import com.example.still_wave_music_player.ui.theme.Accent
 import com.example.still_wave_music_player.ui.theme.Background
 import com.example.still_wave_music_player.ui.theme.Border
 import com.example.still_wave_music_player.ui.theme.Motion
+import com.example.still_wave_music_player.ui.theme.Surface
 import com.example.still_wave_music_player.ui.theme.TextPrimary
 import com.example.still_wave_music_player.ui.theme.TextSecondary
 import com.example.still_wave_music_player.viewmodels.RepeatMode
@@ -79,13 +90,16 @@ import java.util.Locale
  *
  * Ditampilkan sebagai lapisan di atas AppRoot (bukan rute NavHost),
  * dengan latar solid Background, animasi spring cover saat putar/jeda,
- * bilah progres kustom tanpa Slider bawaan Material, dan kontrol lengkap.
+ * bilah progres kustom tanpa Slider bawaan Material, kontrol lengkap,
+ * dan penukaran kartu sampul dengan panel lirik tersinkron.
  */
 @Composable
 fun PlayerScreen(
     song: Song,
     isPlaying: Boolean,
     progress: Float,
+    currentPositionMs: Long = 0L,
+    lyricsState: LyricsUiState = LyricsUiState.Loading,
     isBuffering: Boolean = false,
     isShuffle: Boolean,
     repeatMode: RepeatMode,
@@ -94,6 +108,7 @@ fun PlayerScreen(
     onNext: () -> Unit,
     onPrevious: () -> Unit,
     onSeek: (Float) -> Unit,
+    onSeekToPosition: (Long) -> Unit = {},
     onToggleShuffle: () -> Unit,
     onChangeRepeatMode: () -> Unit,
     modifier: Modifier = Modifier
@@ -102,6 +117,8 @@ fun PlayerScreen(
     BackHandler(enabled = true) {
         onClose()
     }
+
+    var showLyrics by rememberSaveable { mutableStateOf(false) }
 
     // Animasi skala sampul: mengecil sedikit saat jeda dan membesar saat memutar (spring)
     val coverScale by animateFloatAsState(
@@ -127,11 +144,11 @@ fun PlayerScreen(
                     }
                 }
             }
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(rememberScrollState(), enabled = !showLyrics)
             .padding(horizontal = 24.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // ── 1. Bar Atas: Panah Turun, Teks Status, Titik Tiga ─────────────────
+        // ── 1. Bar Atas: Panah Turun, Teks Status, Tombol Lirik, Titik Tiga ─────────────────
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -155,27 +172,65 @@ fun PlayerScreen(
                 )
             )
 
-            BouncyIconButton(
-                icon = AppIcons.MoreVert,
-                contentDescription = "Menu opsi lagu",
-                tint = TextSecondary,
-                onClick = { /* Menu aksi di tahap berikutnya */ }
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                BouncyIconButton(
+                    icon = AppIcons.Lyrics,
+                    contentDescription = if (showLyrics) "Tampilkan sampul" else "Tampilkan lirik",
+                    tint = if (showLyrics) Accent else TextSecondary,
+                    onClick = { showLyrics = !showLyrics }
+                )
+
+                BouncyIconButton(
+                    icon = AppIcons.MoreVert,
+                    contentDescription = "Menu opsi lagu",
+                    tint = TextSecondary,
+                    onClick = { /* Menu aksi di tahap berikutnya */ }
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // ── 2. Sampul Persegi Besar (Sudut 28dp, Animasi Spring, Sekitar 640px) ──
-        AlbumArt(
-            song = song,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .scale(coverScale),
-            shape = RoundedCornerShape(28.dp),
-            sizeDp = 320.dp,
-            customSizePx = 640
-        )
+        // ── 2. Sampul Persegi / Panel Lirik (Animasi Spring Halus) ──
+        AnimatedContent(
+            targetState = showLyrics,
+            transitionSpec = {
+                (fadeIn(animationSpec = spring(dampingRatio = Motion.Standard.dampingRatio, stiffness = Motion.Standard.stiffness)) +
+                    scaleIn(initialScale = 0.94f, animationSpec = spring(dampingRatio = Motion.Standard.dampingRatio, stiffness = Motion.Standard.stiffness)))
+                    .togetherWith(
+                        fadeOut(animationSpec = spring(dampingRatio = Motion.Standard.dampingRatio, stiffness = Motion.Standard.stiffness)) +
+                            scaleOut(targetScale = 0.94f, animationSpec = spring(dampingRatio = Motion.Standard.dampingRatio, stiffness = Motion.Standard.stiffness))
+                    )
+            },
+            label = "cover_lyrics_swap"
+        ) { isLyrics ->
+            if (!isLyrics) {
+                AlbumArt(
+                    song = song,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .scale(coverScale),
+                    shape = RoundedCornerShape(28.dp),
+                    sizeDp = 320.dp,
+                    customSizePx = 640
+                )
+            } else {
+                LyricsPanel(
+                    lyricsState = lyricsState,
+                    currentPositionMs = currentPositionMs,
+                    onSeekToPosition = onSeekToPosition,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(Surface)
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(28.dp))
 
@@ -533,3 +588,128 @@ private fun formatDuration(ms: Long): String {
     val seconds = totalSeconds % 60L
     return String.format(Locale.getDefault(), "%d:%02d", minutes, seconds)
 }
+
+/**
+ * Panel tampilan lirik lagu:
+ * - Memuat: indikator putar warna aksen
+ * - Tidak tersedia: teks "Lirik tidak tersedia"
+ * - Instrumental: teks "Lagu instrumental"
+ * - Teks biasa: teks lirik yang dapat digulir tanpa sorotan
+ * - Tersinkron: daftar baris lirik dengan baris aktif disorot terang dan besar,
+ *   otomatis menggulir ke tengah, dan dapat diketuk untuk melompat ke waktu tersebut.
+ */
+@Composable
+private fun LyricsPanel(
+    lyricsState: LyricsUiState,
+    currentPositionMs: Long,
+    onSeekToPosition: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        when (lyricsState) {
+            is LyricsUiState.Loading -> {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(32.dp),
+                    color = Accent,
+                    strokeWidth = 2.5.dp
+                )
+            }
+            is LyricsUiState.NotFound -> {
+                Text(
+                    text = "Lirik tidak tersedia",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 15.sp,
+                        color = TextSecondary
+                    )
+                )
+            }
+            is LyricsUiState.Instrumental -> {
+                Text(
+                    text = "Lagu instrumental",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 15.sp,
+                        color = TextSecondary
+                    )
+                )
+            }
+            is LyricsUiState.Plain -> {
+                val scrollState = rememberScrollState()
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp)
+                ) {
+                    Text(
+                        text = lyricsState.text,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 15.sp,
+                            lineHeight = 24.sp,
+                            color = TextPrimary
+                        ),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(scrollState)
+                    )
+                }
+            }
+            is LyricsUiState.Synced -> {
+                val lines = lyricsState.lines
+                val listState = rememberLazyListState()
+
+                val activeIndex = remember(currentPositionMs, lines) {
+                    val idx = lines.indexOfLast { it.timeMs <= currentPositionMs }
+                    if (idx == -1) 0 else idx
+                }
+
+                LaunchedEffect(activeIndex) {
+                    if (lines.isNotEmpty() && activeIndex in lines.indices) {
+                        listState.animateScrollToItem(
+                            index = activeIndex,
+                            scrollOffset = 0
+                        )
+                    }
+                }
+
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(vertical = 140.dp, horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    itemsIndexed(lines) { index, line ->
+                        val isActive = index == activeIndex
+                        val lineAlpha by animateFloatAsState(
+                            targetValue = if (isActive) 1f else 0.35f,
+                            animationSpec = spring(
+                                dampingRatio = Motion.Gentle.dampingRatio,
+                                stiffness = Motion.Gentle.stiffness
+                            ),
+                            label = "lyric_alpha_$index"
+                        )
+
+                        Text(
+                            text = line.text,
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontSize = if (isActive) 19.sp else 15.sp,
+                                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isActive) TextPrimary else TextSecondary
+                            ),
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onSeekToPosition(line.timeMs) }
+                                .padding(vertical = 6.dp, horizontal = 8.dp)
+                                .graphicsLayer { alpha = lineAlpha }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+

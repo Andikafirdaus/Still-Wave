@@ -412,4 +412,251 @@ object AppIcons {
             }
         }.build()
     }
+
+    /**
+     * Ikon tombol kembali ke halaman sebelumnya.
+     */
+    val ArrowBack: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "ArrowBack",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(20f, 11f)
+                horizontalLineTo(7.83f)
+                lineTo(13.42f, 5.41f)
+                lineTo(12f, 4f)
+                lineTo(4f, 12f)
+                lineTo(12f, 20f)
+                lineTo(13.41f, 18.59f)
+                lineTo(7.83f, 13f)
+                horizontalLineTo(20f)
+                verticalLineTo(11f)
+                close()
+            }
+        }.build()
+    }
+
+    /**
+     * Ikon lirik lagu.
+     */
+    val Lyrics: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Lyrics",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(20f, 4f)
+                horizontalLineTo(4f)
+                curveTo(2.9f, 4f, 2f, 4.9f, 2f, 6f)
+                verticalLineTo(18f)
+                curveTo(2f, 19.1f, 2.9f, 20f, 4f, 20f)
+                horizontalLineTo(20f)
+                curveTo(21.1f, 20f, 22f, 19.1f, 22f, 18f)
+                verticalLineTo(6f)
+                curveTo(22f, 4.9f, 21.1f, 4f, 20f, 4f)
+                close()
+                moveTo(20f, 18f)
+                horizontalLineTo(4f)
+                verticalLineTo(6f)
+                horizontalLineTo(20f)
+                verticalLineTo(18f)
+                close()
+                moveTo(6f, 8f)
+                horizontalLineTo(18f)
+                verticalLineTo(10f)
+                horizontalLineTo(6f)
+                close()
+                moveTo(6f, 11f)
+                horizontalLineTo(15f)
+                verticalLineTo(13f)
+                horizontalLineTo(6f)
+                close()
+                moveTo(6f, 14f)
+                horizontalLineTo(11f)
+                verticalLineTo(16f)
+                horizontalLineTo(6f)
+                close()
+            }
+        }.build()
+    }
+
+    /**
+     * Ikon favorit penuh (Love terisi).
+     */
+    val Favorite: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Favorite",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(12f, 21.35f)
+                lineTo(10.55f, 20.03f)
+                curveTo(5.4f, 15.36f, 2f, 12.28f, 2f, 8.5f)
+                curveTo(2f, 5.42f, 4.42f, 3f, 7.5f, 3f)
+                curveTo(9.24f, 3f, 10.91f, 3.81f, 12f, 5.09f)
+                curveTo(13.09f, 3.81f, 14.76f, 3f, 16.5f, 3f)
+                curveTo(19.58f, 3f, 22f, 5.42f, 22f, 8.5f)
+                curveTo(22f, 12.28f, 18.6f, 15.36f, 13.45f, 20.04f)
+                lineTo(12f, 21.35f)
+                close()
+            }
+        }.build()
+    }
+
+    /**
+     * Ikon favorit garis luar (Love kosong).
+     */
+    val FavoriteBorder: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "FavoriteBorder",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(16.5f, 3f)
+                curveTo(14.76f, 3f, 13.09f, 3.81f, 12f, 5.09f)
+                curveTo(10.91f, 3.81f, 9.24f, 3f, 7.5f, 3f)
+                curveTo(4.42f, 3f, 2f, 5.42f, 2f, 8.5f)
+                curveTo(2f, 12.28f, 5.4f, 15.36f, 10.55f, 20.04f)
+                lineTo(12f, 21.35f)
+                lineTo(13.45f, 20.03f)
+                curveTo(18.6f, 15.36f, 22f, 12.28f, 22f, 8.5f)
+                curveTo(22f, 5.42f, 19.58f, 3f, 16.5f, 3f)
+                close()
+                moveTo(12.1f, 18.55f)
+                lineTo(12f, 18.65f)
+                lineTo(11.9f, 18.55f)
+                curveTo(7.14f, 14.24f, 4f, 11.39f, 4f, 8.5f)
+                curveTo(4f, 6.5f, 5.5f, 5f, 7.5f, 5f)
+                curveTo(9.04f, 5f, 10.54f, 5.99f, 11.07f, 7.36f)
+                horizontalLineTo(12.94f)
+                curveTo(13.46f, 5.99f, 14.96f, 5f, 16.5f, 5f)
+                curveTo(18.5f, 5f, 20f, 6.5f, 20f, 8.5f)
+                curveTo(20f, 11.39f, 16.86f, 14.24f, 12.1f, 18.55f)
+                close()
+            }
+        }.build()
+    }
+
+    /**
+     * Ikon roda gigi untuk Pengaturan.
+     */
+    val Settings: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Settings",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(19.14f, 12.94f)
+                curveTo(19.18f, 12.63f, 19.21f, 12.32f, 19.21f, 12f)
+                curveTo(19.21f, 11.68f, 19.18f, 11.37f, 19.14f, 11.06f)
+                lineTo(21.41f, 9.29f)
+                curveTo(21.62f, 9.13f, 21.67f, 8.84f, 21.54f, 8.61f)
+                lineTo(19.39f, 4.89f)
+                curveTo(19.26f, 4.66f, 18.98f, 4.57f, 18.73f, 4.67f)
+                lineTo(16.06f, 5.75f)
+                curveTo(15.5f, 5.32f, 14.9f, 4.97f, 14.24f, 4.69f)
+                lineTo(13.84f, 1.85f)
+                curveTo(13.8f, 1.6f, 13.58f, 1.42f, 13.33f, 1.42f)
+                horizontalLineTo(9.07f)
+                curveTo(8.82f, 1.42f, 8.6f, 1.6f, 8.56f, 1.85f)
+                lineTo(8.16f, 4.69f)
+                curveTo(7.5f, 4.97f, 6.9f, 5.32f, 6.34f, 5.75f)
+                lineTo(3.67f, 4.67f)
+                curveTo(3.42f, 4.57f, 3.14f, 4.66f, 3.01f, 4.89f)
+                lineTo(0.86f, 8.61f)
+                curveTo(0.73f, 8.84f, 0.78f, 9.13f, 0.99f, 9.29f)
+                lineTo(3.26f, 11.06f)
+                curveTo(3.22f, 11.37f, 3.19f, 11.68f, 3.19f, 12f)
+                curveTo(3.19f, 12.32f, 3.22f, 12.63f, 3.26f, 12.94f)
+                lineTo(0.99f, 14.71f)
+                curveTo(0.78f, 14.87f, 0.73f, 15.16f, 0.86f, 15.39f)
+                lineTo(3.01f, 19.11f)
+                curveTo(3.14f, 19.34f, 3.42f, 19.43f, 3.67f, 19.33f)
+                lineTo(6.34f, 18.25f)
+                curveTo(6.9f, 18.68f, 7.5f, 19.03f, 8.16f, 19.31f)
+                lineTo(8.56f, 22.15f)
+                curveTo(8.6f, 22.4f, 8.82f, 22.58f, 9.07f, 22.58f)
+                horizontalLineTo(13.33f)
+                curveTo(13.58f, 22.58f, 13.8f, 22.4f, 13.84f, 22.15f)
+                lineTo(14.24f, 19.31f)
+                curveTo(14.9f, 19.03f, 15.5f, 18.68f, 16.06f, 18.25f)
+                lineTo(18.73f, 19.33f)
+                curveTo(18.98f, 19.43f, 19.26f, 19.34f, 19.39f, 19.11f)
+                lineTo(21.54f, 15.39f)
+                curveTo(21.67f, 15.16f, 21.62f, 14.87f, 21.41f, 14.71f)
+                lineTo(19.14f, 12.94f)
+                close()
+                moveTo(11.2f, 15.5f)
+                curveTo(9.27f, 15.5f, 7.7f, 13.93f, 7.7f, 12f)
+                curveTo(7.7f, 10.07f, 9.27f, 8.5f, 11.2f, 8.5f)
+                curveTo(13.13f, 8.5f, 14.7f, 10.07f, 14.7f, 12f)
+                curveTo(14.7f, 13.93f, 13.13f, 15.5f, 11.2f, 15.5f)
+                close()
+            }
+        }.build()
+    }
+
+    /**
+     * Ikon tambah ke daftar putar (PlaylistAdd).
+     */
+    val PlaylistAdd: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "PlaylistAdd",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(14f, 10f)
+                horizontalLineTo(2f)
+                verticalLineTo(12f)
+                horizontalLineTo(14f)
+                verticalLineTo(10f)
+                close()
+                moveTo(14f, 6f)
+                horizontalLineTo(2f)
+                verticalLineTo(8f)
+                horizontalLineTo(14f)
+                verticalLineTo(6f)
+                close()
+                moveTo(18f, 14f)
+                verticalLineTo(10f)
+                horizontalLineTo(16f)
+                verticalLineTo(14f)
+                horizontalLineTo(12f)
+                verticalLineTo(16f)
+                horizontalLineTo(16f)
+                verticalLineTo(20f)
+                horizontalLineTo(18f)
+                verticalLineTo(16f)
+                horizontalLineTo(22f)
+                verticalLineTo(14f)
+                horizontalLineTo(18f)
+                close()
+                moveTo(2f, 16f)
+                horizontalLineTo(10f)
+                verticalLineTo(14f)
+                horizontalLineTo(2f)
+                verticalLineTo(16f)
+                close()
+            }
+        }.build()
+    }
 }

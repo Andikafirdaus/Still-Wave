@@ -15,7 +15,9 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import com.example.still_wave_music_player.data.model.LyricsUiState
 import com.example.still_wave_music_player.data.model.Song
+import com.example.still_wave_music_player.data.repository.LyricsRepository
 import com.example.still_wave_music_player.playback.MusicService
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.Dispatchers
@@ -42,6 +44,7 @@ data class PlayerUiState(
     val currentSong: Song? = null,
     val isPlaying: Boolean = false,
     val progress: Float = 0f, // 0f .. 1f
+    val currentPositionMs: Long = 0L,
     val queue: List<Song> = emptyList(),
     val isShuffle: Boolean = false,
     val repeatMode: RepeatMode = RepeatMode.OFF,
@@ -57,11 +60,35 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
 
+    private val lyricsRepository = LyricsRepository.getInstance(application)
+    private val _lyricsState = MutableStateFlow<LyricsUiState>(LyricsUiState.Loading)
+    val lyricsState: StateFlow<LyricsUiState> = _lyricsState.asStateFlow()
+    private var lyricsJob: Job? = null
+    private var lastLyricsSongId: String? = null
+
     private var mediaController: MediaController? = null
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private val pendingActions = mutableListOf<(MediaController) -> Unit>()
     private var positionTrackerJob: Job? = null
     private var lastFailedMediaIdToast: String? = null
+
+    private fun loadLyricsForSong(song: Song?) {
+        if (song == null) {
+            _lyricsState.value = LyricsUiState.NotFound
+            lastLyricsSongId = null
+            return
+        }
+        val songKey = song.videoId?.takeIf { it.isNotBlank() } ?: song.id
+        if (songKey == lastLyricsSongId) return
+        lastLyricsSongId = songKey
+
+        lyricsJob?.cancel()
+        _lyricsState.value = LyricsUiState.Loading
+        lyricsJob = viewModelScope.launch {
+            val state = lyricsRepository.getLyrics(song)
+            _lyricsState.value = state
+        }
+    }
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -88,10 +115,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 )
             }
 
+            loadLyricsForSong(matchedSong)
+
             _uiState.update {
                 it.copy(
                     currentSong = matchedSong,
                     progress = 0f,
+                    currentPositionMs = 0L,
                     isBuffering = false
                 )
             }
@@ -212,6 +242,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             else -> RepeatMode.OFF
         }
 
+        loadLyricsForSong(matchedSong)
+
         _uiState.update {
             it.copy(
                 currentSong = matchedSong ?: it.currentSong,
@@ -254,7 +286,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     _uiState.update {
                         it.copy(
                             currentSong = updatedSong,
-                            progress = progress
+                            progress = progress,
+                            currentPositionMs = currentPosition
                         )
                     }
                 }
@@ -330,11 +363,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
 
+        val targetSong = playableSongs[initialIndex]
+        loadLyricsForSong(targetSong)
+
         _uiState.update {
             it.copy(
                 queue = playableSongs,
-                currentSong = playableSongs[initialIndex],
+                currentSong = targetSong,
                 progress = 0f,
+                currentPositionMs = 0L,
                 isBuffering = true
             )
         }
@@ -413,8 +450,43 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             if (duration > 0L) {
                 val targetPosition = (progres.coerceIn(0f, 1f) * duration).toLong()
                 controller.seekTo(targetPosition)
+                _uiState.update {
+                    it.copy(
+                        progress = progres.coerceIn(0f, 1f),
+                        currentPositionMs = targetPosition
+                    )
+                }
+            } else {
+                _uiState.update { it.copy(progress = progres.coerceIn(0f, 1f)) }
             }
-            _uiState.update { it.copy(progress = progres.coerceIn(0f, 1f)) }
+        }
+    }
+
+    /**
+     * Melompat langsung ke posisi waktu tertentu (dalam milidetik).
+     */
+    fun seekToPosition(positionMs: Long) {
+        withController { controller ->
+            val targetMs = positionMs.coerceAtLeast(0L)
+            controller.seekTo(targetMs)
+            val exoDuration = controller.duration
+            val currentSong = _uiState.value.currentSong
+            val duration = if (exoDuration != C.TIME_UNSET && exoDuration > 0L) {
+                exoDuration
+            } else {
+                currentSong?.durationMs ?: 0L
+            }
+            val progress = if (duration > 0L) {
+                (targetMs.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+            } else {
+                0f
+            }
+            _uiState.update {
+                it.copy(
+                    progress = progress,
+                    currentPositionMs = targetMs
+                )
+            }
         }
     }
 
