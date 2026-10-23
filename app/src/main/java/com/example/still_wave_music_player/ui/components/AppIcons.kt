@@ -659,4 +659,257 @@ object AppIcons {
             }
         }.build()
     }
+
+    /**
+     * Ikon hati (outline) untuk favorit nonaktif.
+     */
+    val Favorite: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Favorite",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(16.5f, 3f)
+                curveTo(14.76f, 3f, 13.09f, 3.81f, 12f, 5.09f)
+                curveTo(10.91f, 3.81f, 9.24f, 3f, 7.5f, 3f)
+                curveTo(4.42f, 3f, 2f, 5.42f, 2f, 8.5f)
+                curveTo(2f, 12.28f, 5.4f, 15.36f, 10.55f, 20.04f)
+                lineTo(12f, 21.35f)
+                lineTo(13.45f, 20.03f)
+                curveTo(18.6f, 15.36f, 22f, 12.28f, 22f, 8.5f)
+                curveTo(22f, 5.42f, 19.58f, 3f, 16.5f, 3f)
+                close()
+                moveTo(12.1f, 18.55f)
+                lineTo(12f, 18.65f)
+                lineTo(11.9f, 18.55f)
+                curveTo(7.14f, 14.24f, 4f, 11.39f, 4f, 8.5f)
+                curveTo(4f, 6.5f, 5.5f, 5f, 7.5f, 5f)
+                curveTo(9.04f, 5f, 10.54f, 5.99f, 11.07f, 7.36f)
+                horizontalLineTo(12.94f)
+                curveTo(13.46f, 5.99f, 14.96f, 5f, 16.5f, 5f)
+                curveTo(18.5f, 5f, 20f, 6.5f, 20f, 8.5f)
+                curveTo(20f, 11.39f, 16.86f, 14.24f, 12.1f, 18.55f)
+                close()
+            }
+        }.build()
+    }
+
+    /**
+     * Ikon hati (padat) untuk favorit aktif.
+     */
+    val FavoriteFilled: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "FavoriteFilled",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(12f, 21.35f)
+                lineTo(10.55f, 20.03f)
+                curveTo(5.4f, 15.36f, 2f, 12.28f, 2f, 8.5f)
+                curveTo(2f, 5.42f, 4.42f, 3f, 7.5f, 3f)
+                curveTo(9.24f, 3f, 10.91f, 3.81f, 12f, 5.09f)
+                curveTo(13.09f, 3.81f, 14.76f, 3f, 16.5f, 3f)
+                curveTo(19.58f, 3f, 22f, 5.42f, 22f, 8.5f)
+                curveTo(22f, 12.28f, 18.6f, 15.36f, 13.45f, 20.03f)
+                lineTo(12f, 21.35f)
+                close()
+            }
+        }.build()
+    }
+
+    /**
+     * Ikon jam putar-balik untuk riwayat pemutaran.
+     */
+    val History: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "History",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(13f, 3f)
+                curveTo(8.03f, 3f, 4f, 7.03f, 4f, 12f)
+                horizontalLineTo(1f)
+                lineTo(4.89f, 15.89f)
+                lineTo(4.96f, 16.03f)
+                lineTo(9f, 12f)
+                horizontalLineTo(6f)
+                curveTo(6f, 8.13f, 9.13f, 5f, 13f, 5f)
+                curveTo(16.87f, 5f, 20f, 8.13f, 20f, 12f)
+                curveTo(20f, 15.87f, 16.87f, 19f, 13f, 19f)
+                curveTo(11.07f, 19f, 9.32f, 18.21f, 8.06f, 16.94f)
+                lineTo(6.64f, 18.36f)
+                curveTo(8.27f, 19.99f, 10.51f, 21f, 13f, 21f)
+                curveTo(17.97f, 21f, 22f, 16.97f, 22f, 12f)
+                curveTo(22f, 7.03f, 17.97f, 3f, 13f, 3f)
+                close()
+                moveTo(12f, 8f)
+                verticalLineTo(13f)
+                lineTo(16.25f, 15.52f)
+                lineTo(17f, 14.33f)
+                lineTo(13.5f, 12.25f)
+                verticalLineTo(8f)
+                horizontalLineTo(12f)
+                close()
+            }
+        }.build()
+    }
+
+    /**
+     * Ikon tambah (+) untuk membuat daftar putar baru.
+     */
+    val Add: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Add",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(19f, 13f)
+                horizontalLineTo(13f)
+                verticalLineTo(19f)
+                horizontalLineTo(11f)
+                verticalLineTo(13f)
+                horizontalLineTo(5f)
+                verticalLineTo(11f)
+                horizontalLineTo(11f)
+                verticalLineTo(5f)
+                horizontalLineTo(13f)
+                verticalLineTo(11f)
+                horizontalLineTo(19f)
+                verticalLineTo(13f)
+                close()
+            }
+        }.build()
+    }
+
+    /**
+     * Ikon daftar putar dengan tanda tambah (tambah ke daftar putar).
+     */
+    val PlaylistAdd: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "PlaylistAdd",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(14f, 10f)
+                horizontalLineTo(2f)
+                verticalLineTo(12f)
+                horizontalLineTo(14f)
+                verticalLineTo(10f)
+                close()
+                moveTo(14f, 6f)
+                horizontalLineTo(2f)
+                verticalLineTo(8f)
+                horizontalLineTo(14f)
+                verticalLineTo(6f)
+                close()
+                moveTo(18f, 14f)
+                verticalLineTo(10f)
+                horizontalLineTo(16f)
+                verticalLineTo(14f)
+                horizontalLineTo(12f)
+                verticalLineTo(16f)
+                horizontalLineTo(16f)
+                verticalLineTo(20f)
+                horizontalLineTo(18f)
+                verticalLineTo(16f)
+                horizontalLineTo(22f)
+                verticalLineTo(14f)
+                horizontalLineTo(18f)
+                close()
+                moveTo(2f, 16f)
+                horizontalLineTo(10f)
+                verticalLineTo(14f)
+                horizontalLineTo(2f)
+                verticalLineTo(16f)
+                close()
+            }
+        }.build()
+    }
+
+    /**
+     * Ikon delete / hapus (tempat sampah).
+     */
+    val Delete: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Delete",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(6f, 19f)
+                curveTo(6f, 20.1f, 6.9f, 21f, 8f, 21f)
+                horizontalLineTo(16f)
+                curveTo(17.1f, 21f, 18f, 20.1f, 18f, 19f)
+                verticalLineTo(7f)
+                horizontalLineTo(6f)
+                verticalLineTo(19f)
+                close()
+                moveTo(8f, 9f)
+                horizontalLineTo(16f)
+                verticalLineTo(19f)
+                horizontalLineTo(8f)
+                verticalLineTo(9f)
+                close()
+                moveTo(15.5f, 4f)
+                lineTo(14.5f, 3f)
+                horizontalLineTo(9.5f)
+                lineTo(8.5f, 4f)
+                horizontalLineTo(5f)
+                verticalLineTo(6f)
+                horizontalLineTo(19f)
+                verticalLineTo(4f)
+                horizontalLineTo(15.5f)
+                close()
+            }
+        }.build()
+    }
+
+    /**
+     * Ikon pensil untuk mengganti nama.
+     */
+    val Edit: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Edit",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(3f, 17.25f)
+                verticalLineTo(21f)
+                horizontalLineTo(6.75f)
+                lineTo(17.81f, 9.94f)
+                lineTo(14.06f, 6.19f)
+                lineTo(3f, 17.25f)
+                close()
+                moveTo(20.71f, 7.04f)
+                curveTo(21.1f, 6.65f, 21.1f, 6.02f, 20.71f, 5.63f)
+                lineTo(18.37f, 3.29f)
+                curveTo(17.98f, 2.9f, 17.35f, 2.9f, 16.96f, 3.29f)
+                lineTo(15.13f, 5.12f)
+                lineTo(18.88f, 8.87f)
+                lineTo(20.71f, 7.04f)
+                close()
+            }
+        }.build()
+    }
 }
+

@@ -56,6 +56,7 @@ fun HomeScreen(
     libraryState: LibraryUiState,
     requiredPermission: String,
     onPermissionGranted: () -> Unit,
+    recentlyPlayed: List<Song> = emptyList(),
     onPlaySong: (Song, List<Song>) -> Unit = { _, _ -> },
     onOpenSettings: () -> Unit = {}
 ) {
@@ -105,6 +106,35 @@ fun HomeScreen(
                                 contentDescription = "Pengaturan",
                                 tint = TextSecondary
                             )
+                        }
+                    }
+                }
+
+                // ── Bagian: Baru diputar (dari riwayat Room) ─────────────────────────
+                if (recentlyPlayed.isNotEmpty()) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Text(
+                                text = "Baru diputar",
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary
+                                ),
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                items(recentlyPlayed, key = { it.id + it.hashCode() }) { song ->
+                                    RecentlyAddedCard(
+                                        song = song,
+                                        onClick = { onPlaySong(song, recentlyPlayed) }
+                                    )
+                                }
+                            }
                         }
                     }
                 }

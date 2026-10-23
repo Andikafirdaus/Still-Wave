@@ -82,6 +82,7 @@ import com.example.still_wave_music_player.ui.theme.Motion
 import com.example.still_wave_music_player.ui.theme.Surface
 import com.example.still_wave_music_player.ui.theme.TextPrimary
 import com.example.still_wave_music_player.ui.theme.TextSecondary
+import com.example.still_wave_music_player.ui.theme.TextMuted
 import com.example.still_wave_music_player.viewmodels.RepeatMode
 import java.util.Locale
 
@@ -103,6 +104,7 @@ fun PlayerScreen(
     isBuffering: Boolean = false,
     isShuffle: Boolean,
     repeatMode: RepeatMode,
+    isFavorite: Boolean = false,
     onClose: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onNext: () -> Unit,
@@ -111,6 +113,7 @@ fun PlayerScreen(
     onSeekToPosition: (Long) -> Unit = {},
     onToggleShuffle: () -> Unit,
     onChangeRepeatMode: () -> Unit,
+    onToggleFavorite: () -> Unit = {},
     onNavigateToArtist: (String) -> Unit = {},
     onNavigateToAlbum: (String) -> Unit = {},
     modifier: Modifier = Modifier
@@ -345,8 +348,24 @@ fun PlayerScreen(
             )
         }
 
-        // ── 6. Ruang Kosong Bawah ─────────────────────────────────────────────
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // ── 6. Baris Sekunder: Favorit ────────────────────────────────────────
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            BouncyIconButton(
+                icon = if (isFavorite) AppIcons.FavoriteFilled else AppIcons.Favorite,
+                contentDescription = if (isFavorite) "Hapus dari favorit" else "Tambah ke favorit",
+                tint = if (isFavorite) Accent else TextSecondary,
+                onClick = onToggleFavorite
+            )
+        }
+
+        // ── 7. Ruang Kosong Bawah ─────────────────────────────────────────────
+        Spacer(modifier = Modifier.height(20.dp))
     }
 }
 

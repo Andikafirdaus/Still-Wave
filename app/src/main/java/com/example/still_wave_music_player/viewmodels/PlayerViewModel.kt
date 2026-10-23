@@ -15,9 +15,12 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import com.example.still_wave_music_player.data.local.AppDatabase
 import com.example.still_wave_music_player.data.model.LyricsUiState
 import com.example.still_wave_music_player.data.model.Song
 import com.example.still_wave_music_player.data.remote.YouTubeMusicApi
+import com.example.still_wave_music_player.data.repository.FavoritesRepository
+import com.example.still_wave_music_player.data.repository.HistoryRepository
 import com.example.still_wave_music_player.data.repository.LyricsRepository
 import com.example.still_wave_music_player.data.repository.SettingsRepository
 import com.example.still_wave_music_player.playback.MusicService
@@ -25,6 +28,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,7 +49,7 @@ enum class RepeatMode {
  * Penanda sumber antrean pemutaran lagu.
  */
 enum class QueueSource {
-    SINGLE_ONLINE, COLLECTION
+    SINGLE_ONLINE, COLLECTION, LIST, RADIO
 }
 
 /**
@@ -88,6 +92,25 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun setCrossfadeSeconds(seconds: Int) {
         settingsRepository.setCrossfadeSeconds(seconds)
     }
+
+    // Room repositories
+    private val db = AppDatabase.getDatabase(application)
+    val historyRepository = HistoryRepository(db.playHistoryDao())
+    val favoritesRepository = FavoritesRepository(db.favoriteSongDao())
+
+    fun getFavorites(): Flow<List<Song>> = favoritesRepository.getAll()
+    fun isFavorite(song: Song): Flow<Boolean> = favoritesRepository.isFavorite(song)
+
+    fun toggleFavorite(song: Song) {
+        viewModelScope.launch {
+            favoritesRepository.toggleFavorite(song)
+        }
+    }
+
+    // Pencatatan "putaran": lagu dianggap diputar jika minimal min(30detik, 50% durasi) terdengar, satu kali per transisi lagu
+    private var historyTrackSongId: String? = null
+    private var historyTrackStartMs: Long = 0L
+    private var historyRecordedForCurrent: Boolean = false
 
     private var queueSource: QueueSource = QueueSource.COLLECTION
     private val playedVideoIds: MutableSet<String> = Collections.synchronizedSet(mutableSetOf())
@@ -144,6 +167,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
             matchedSong?.videoId?.let { playedVideoIds.add(it) }
             loadLyricsForSong(matchedSong)
+
+            // Reset pelacak riwayat untuk lagu baru saat transisi
+            historyTrackSongId = null
+            historyRecordedForCurrent = false
 
             _uiState.update {
                 it.copy(
@@ -331,6 +358,29 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                             currentPositionMs = currentPosition
                         )
                     }
+
+                    // Pelacak riwayat: catat saat minimal min(30000ms, 50% durasi) telah terdengar
+                    if (!historyRecordedForCurrent && currentSong != null) {
+                        val songKey = currentSong.videoId?.takeIf { it.isNotBlank() } ?: currentSong.id
+                        if (historyTrackSongId != songKey) {
+                            historyTrackSongId = songKey
+                            historyTrackStartMs = currentPosition
+                        } else {
+                            val listened = currentPosition - historyTrackStartMs
+                            val threshold = if (duration > 0L) {
+                                minOf(30_000L, duration / 2)
+                            } else {
+                                30_000L
+                            }
+                            if (listened >= threshold) {
+                                historyRecordedForCurrent = true
+                                val songToRecord = updatedSong ?: currentSong
+                                viewModelScope.launch(Dispatchers.IO) {
+                                    historyRepository.addHistory(songToRecord)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -340,7 +390,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * Memulai pemutaran lagu sesungguhnya dengan Media3 ExoPlayer.
      * Mendukung lagu lokal (dengan contentUri) dan lagu online YouTube Music (dengan videoId).
      */
-    fun putar(song: Song, daftar: List<Song> = emptyList()) {
+    fun putar(song: Song, daftar: List<Song> = emptyList(), source: QueueSource? = null) {
         val sourceList = if (daftar.isNotEmpty()) daftar else _uiState.value.queue.ifEmpty { listOf(song) }
         val playableSongs = sourceList.filter { !it.contentUri.isNullOrEmpty() || !it.videoId.isNullOrEmpty() }
         if (playableSongs.isEmpty()) {
@@ -354,8 +404,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         val isSingleOnline = (daftar.isEmpty() || daftar.size == 1) && !song.videoId.isNullOrBlank()
-        queueSource = if (isSingleOnline) QueueSource.SINGLE_ONLINE else QueueSource.COLLECTION
+        queueSource = source ?: if (isSingleOnline) QueueSource.SINGLE_ONLINE else QueueSource.COLLECTION
         song.videoId?.let { playedVideoIds.add(it) }
+
+        // Reset pelacak riwayat untuk lagu baru
+        historyTrackSongId = null
+        historyRecordedForCurrent = false
 
         val initialIndex = playableSongs.indexOfFirst {
             it.id == song.id || (!it.videoId.isNullOrEmpty() && it.videoId == song.videoId)

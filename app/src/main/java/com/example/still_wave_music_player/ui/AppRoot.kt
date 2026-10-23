@@ -51,6 +51,7 @@ import com.example.still_wave_music_player.ui.theme.Background
 import com.example.still_wave_music_player.ui.theme.Motion
 import com.example.still_wave_music_player.viewmodels.LibraryViewModel
 import com.example.still_wave_music_player.viewmodels.PlayerViewModel
+import com.example.still_wave_music_player.viewmodels.PlaylistViewModel
 import com.example.still_wave_music_player.viewmodels.QueueSource
 
 /**
@@ -63,7 +64,8 @@ import com.example.still_wave_music_player.viewmodels.QueueSource
 @Composable
 fun AppRoot(
     playerViewModel: PlayerViewModel = viewModel(),
-    libraryViewModel: LibraryViewModel = viewModel()
+    libraryViewModel: LibraryViewModel = viewModel(),
+    playlistViewModel: PlaylistViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val navController = rememberNavController()
@@ -82,6 +84,13 @@ fun AppRoot(
     val isAutoRadioEnabled by playerViewModel.isAutoRadioEnabled.collectAsStateWithLifecycle()
     val crossfadeSeconds by playerViewModel.crossfadeSeconds.collectAsStateWithLifecycle()
     val libraryState by libraryViewModel.uiState.collectAsStateWithLifecycle()
+    val isFavorite by playerViewModel.isFavorite(
+        playerState.currentSong ?: com.example.still_wave_music_player.data.model.Song(
+            id = "", title = "", artist = ""
+        )
+    ).collectAsStateWithLifecycle(initialValue = false)
+    val recentlyPlayed by playerViewModel.historyRepository.getRecent(8)
+        .collectAsStateWithLifecycle(initialValue = emptyList())
 
     var isPlayerOpen by rememberSaveable { mutableStateOf(false) }
     var isSettingsOpen by rememberSaveable { mutableStateOf(false) }
@@ -143,6 +152,7 @@ fun AppRoot(
                     libraryState = libraryState,
                     requiredPermission = libraryViewModel.getRequiredPermission(),
                     onPermissionGranted = libraryViewModel::muat,
+                    recentlyPlayed = recentlyPlayed,
                     onPlaySong = handlePlaySong,
                     onOpenSettings = { isSettingsOpen = true }
                 )
@@ -152,9 +162,8 @@ fun AppRoot(
             }
             composable(Screen.Pustaka.route) {
                 LibraryScreen(
-                    libraryState = libraryState,
-                    requiredPermission = libraryViewModel.getRequiredPermission(),
-                    onPermissionGranted = libraryViewModel::muat,
+                    playerViewModel = playerViewModel,
+                    playlistViewModel = playlistViewModel,
                     onPlaySong = handlePlaySong,
                     onOpenSettings = { isSettingsOpen = true }
                 )
@@ -288,6 +297,7 @@ fun AppRoot(
                     isBuffering = playerState.isBuffering,
                     isShuffle = playerState.isShuffle,
                     repeatMode = playerState.repeatMode,
+                    isFavorite = isFavorite,
                     onClose = { isPlayerOpen = false },
                     onTogglePlayPause = {
                         requestNotificationPermissionIfNeeded()
@@ -299,6 +309,7 @@ fun AppRoot(
                     onSeekToPosition = playerViewModel::seekToPosition,
                     onToggleShuffle = playerViewModel::toggleAcak,
                     onChangeRepeatMode = playerViewModel::gantiModeUlang,
+                    onToggleFavorite = { playerViewModel.toggleFavorite(song) },
                     onNavigateToArtist = { browseId ->
                         isPlayerOpen = false
                         navController.navigate(Screen.Artis.createRoute(browseId))
