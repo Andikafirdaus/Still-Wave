@@ -1,13 +1,13 @@
 package com.example.still_wave_music_player.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -37,7 +37,7 @@ import com.example.still_wave_music_player.ui.theme.TextSecondary
 /**
  * Bottom Sheet Pengaturan aplikasi Still Wave:
  * - Opsi saklar "Putar otomatis lagu serupa"
- * - Disiapkan untuk opsi Crossfade di Fase 5
+ * - Pilihan durasi crossfade (Mati / 3 / 5 / 8 / 10 detik)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,6 +49,7 @@ fun SettingsSheet(
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val crossfadeOptions = listOf(0, 3, 5, 8, 10)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -70,8 +71,8 @@ fun SettingsSheet(
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
                 .navigationBarsPadding()
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             Text(
                 text = "Pengaturan",
@@ -122,7 +123,63 @@ fun SettingsSheet(
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            // Pilihan Durasi Crossfade
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Crossfade antar lagu",
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextPrimary
+                        )
+                    )
+                    Text(
+                        text = if (crossfadeSeconds == 0) {
+                            "Perpindahan lagu langsung tanpa efek"
+                        } else {
+                            "Fade-out ${crossfadeSeconds} detik lalu fade-in lagu berikutnya"
+                        },
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 13.sp,
+                            color = TextSecondary
+                        )
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    crossfadeOptions.forEach { option ->
+                        val isSelected = crossfadeSeconds == option
+                        val label = if (option == 0) "Mati" else "${option}d"
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isSelected) Accent else Surface)
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isSelected) Accent else Border,
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+                                .clickable { onCrossfadeChanged(option) }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) TextPrimary else TextMuted
+                                )
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

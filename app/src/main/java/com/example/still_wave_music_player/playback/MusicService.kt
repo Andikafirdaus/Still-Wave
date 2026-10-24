@@ -21,11 +21,14 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.example.still_wave_music_player.MainActivity
 import com.example.still_wave_music_player.data.remote.YouTubeStreamResolver
+import com.example.still_wave_music_player.data.repository.SettingsRepository
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.IOException
 
@@ -40,7 +43,16 @@ class MusicService : MediaSessionService() {
     private var lastResolvedClient: String? = null
     private var retryCountForCurrentVideo = 0
 
+    // Fase 5: Prefetch & Crossfade
+    private val serviceScope = CoroutineScope(Dispatchers.Main)
+    private var prefetchJob: Job? = null
+    private var crossfadeJob: Job? = null
+    private var isFadingOut = false
+    private var isFadingIn = false
+    private lateinit var settingsRepository: SettingsRepository
+
     override fun onCreate() {
+        settingsRepository = SettingsRepository.getInstance(this)
         super.onCreate()
         YouTubeStreamResolver.clearCache()
 
@@ -116,6 +128,30 @@ class MusicService : MediaSessionService() {
                     lastRetriedVideoId = null
                     retryCountForCurrentVideo = 0
                 }
+
+                // Crossfade: fade in volume lagu baru (jika sedang dalam sesi crossfade)
+                if (isFadingOut) {
+                    isFadingOut = false
+                    startFadeIn(player)
+                } else {
+                    // Pastikan volume penuh saat tidak ada crossfade
+                    if (!isFadingIn) player.volume = 1f
+                }
+
+                // Prefetch: hangatkan cache URL lagu berikutnya di background
+                scheduleNextTrackPrefetch(player)
+
+                // Mulai monitor posisi untuk crossfade
+                startCrossfadeMonitor(player)
+            }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (isPlaying) {
+                    scheduleNextTrackPrefetch(player)
+                    startCrossfadeMonitor(player)
+                } else {
+                    crossfadeJob?.cancel()
+                }
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -170,6 +206,12 @@ class MusicService : MediaSessionService() {
                     }
                     return
                 }
+
+                // Reset state fade dan bersihkan job saat terjadi error
+                isFadingOut = false
+                isFadingIn = false
+                crossfadeJob?.cancel()
+                player.volume = 1f
 
                 // Jika gagal lagi atau error lain: lompat ke lagu berikutnya atau hentikan
                 Log.e("MusikPlayer", "Pemutaran gagal untuk videoId=$videoId: cause=$causeClassName errorCodeName=$errorCodeName$httpInfo")
@@ -254,11 +296,132 @@ class MusicService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        prefetchJob?.cancel()
+        crossfadeJob?.cancel()
         mediaSession?.run {
             player.release()
             release()
             mediaSession = null
         }
         super.onDestroy()
+    }
+
+    // ── Fase 5: Prefetch ──────────────────────────────────────────────────────
+
+    /**
+     * Jadwalkan prefetch URL audio lagu berikutnya (jika ada) agar cache hangat
+     * sebelum ExoPlayer membutuhkannya. Dipanggil saat lagu transisi atau mulai bermain.
+     */
+    private fun scheduleNextTrackPrefetch(player: ExoPlayer) {
+        prefetchJob?.cancel()
+        val nextIndex = player.currentMediaItemIndex + 1
+        if (nextIndex >= player.mediaItemCount) return
+
+        val nextItem = player.getMediaItemAt(nextIndex)
+        val nextUri = nextItem.requestMetadata.mediaUri ?: nextItem.localConfiguration?.uri
+        if (nextUri?.scheme != "ytm") return
+
+        val nextVideoId = nextUri.host?.takeIf { it.isNotBlank() }
+            ?: nextUri.path?.trimStart('/')?.takeIf { it.isNotBlank() }
+            ?: return
+
+        // Jangan prefetch jika sudah ada cache valid
+        if (YouTubeStreamResolver.getCached(nextVideoId) != null) return
+
+        prefetchJob = serviceScope.launch(Dispatchers.IO) {
+            try {
+                Log.d("MusikPlayer", "prefetch mulai videoId=$nextVideoId")
+                YouTubeStreamResolver.resolve(nextVideoId)
+                Log.d("MusikPlayer", "prefetch selesai videoId=$nextVideoId")
+            } catch (e: Exception) {
+                Log.w("MusikPlayer", "prefetch gagal videoId=$nextVideoId: ${e.message}")
+            }
+        }
+    }
+
+    // ── Fase 5: Crossfade ─────────────────────────────────────────────────────
+
+    /**
+     * Monitor posisi pemutaran dan mulai fade-out volume saat sisa waktu
+     * kurang dari atau sama dengan [crossfadeSeconds].
+     * Polling setiap 200ms agar responsif tanpa berlebihan mengonsumsi CPU.
+     */
+    private fun startCrossfadeMonitor(player: ExoPlayer) {
+        crossfadeJob?.cancel()
+        val crossfadeSec = settingsRepository.crossfadeSeconds.value
+        if (crossfadeSec <= 0) return
+
+        crossfadeJob = serviceScope.launch {
+            while (isActive) {
+                delay(200L)
+                if (!player.isPlaying) continue
+                if (isFadingOut || isFadingIn) continue
+
+                val duration = player.duration
+                val position = player.currentPosition
+                if (duration <= 0L || duration == C.TIME_UNSET) continue
+
+                val remaining = duration - position
+                val crossfadeMs = crossfadeSec * 1000L
+
+                // Hanya fade-out jika ada lagu berikutnya
+                if (remaining in 1L..crossfadeMs && player.hasNextMediaItem()) {
+                    Log.d("MusikPlayer", "crossfade: mulai fade-out sisa=${remaining}ms crossfade=${crossfadeMs}ms")
+                    startFadeOut(player, durationMs = remaining)
+                    break
+                }
+            }
+        }
+    }
+
+    /**
+     * Fade out volume player dari nilai saat ini ke 0 selama [durationMs] ms,
+     * lalu pindah ke lagu berikutnya.
+     */
+    private fun startFadeOut(player: ExoPlayer, durationMs: Long) {
+        isFadingOut = true
+        serviceScope.launch {
+            val steps = 20
+            val stepMs = (durationMs / steps).coerceAtLeast(10L)
+            val startVol = player.volume
+            for (i in 1..steps) {
+                if (!isActive || !isFadingOut) break
+                player.volume = (startVol * (1f - i.toFloat() / steps)).coerceIn(0f, 1f)
+                delay(stepMs)
+            }
+            if (isFadingOut) {
+                player.volume = 0f
+                // Pindah ke lagu berikutnya; onMediaItemTransition akan memanggil startFadeIn
+                if (player.hasNextMediaItem()) {
+                    player.seekToNextMediaItem()
+                    player.play()
+                } else {
+                    isFadingOut = false
+                    player.volume = 1f
+                }
+            }
+        }
+    }
+
+    /**
+     * Fade in volume player dari 0 ke 1 selama [durationMs] ms.
+     * Default durasi sama dengan crossfadeSeconds.
+     */
+    private fun startFadeIn(player: ExoPlayer, durationMs: Long = settingsRepository.crossfadeSeconds.value * 1000L) {
+        isFadingIn = true
+        player.volume = 0f
+        serviceScope.launch {
+            val steps = 20
+            val stepMs = (durationMs / steps).coerceAtLeast(10L)
+            for (i in 1..steps) {
+                if (!isActive || !isFadingIn) break
+                player.volume = (i.toFloat() / steps).coerceIn(0f, 1f)
+                delay(stepMs)
+            }
+            player.volume = 1f
+            isFadingIn = false
+            // Mulai monitor crossfade untuk lagu yang baru saja mulai
+            startCrossfadeMonitor(player)
+        }
     }
 }

@@ -14,16 +14,16 @@ interface PlayHistoryDao {
     suspend fun insert(entry: PlayHistory)
 
     @Query("SELECT * FROM play_history ORDER BY playedAt DESC LIMIT :limit")
-    fun getRecent(limit: Int = 100): Flow<List<PlayHistory>>
+    fun getRecent(limit: Int): Flow<List<PlayHistory>>
 
     @Query("SELECT * FROM play_history ORDER BY playedAt DESC LIMIT :limit")
-    suspend fun getRecentSuspend(limit: Int = 100): List<PlayHistory>
+    suspend fun getRecentSuspend(limit: Int): List<PlayHistory>
 
     @Query("SELECT * FROM play_history WHERE playedAt >= :since ORDER BY playedAt DESC")
     suspend fun getSince(since: Long): List<PlayHistory>
 
     @Query("DELETE FROM play_history")
-    suspend fun deleteAll()
+    suspend fun deleteAll(): Int
 }
 
 @Dao
@@ -32,7 +32,7 @@ interface FavoriteSongDao {
     suspend fun insert(song: FavoriteSong)
 
     @Query("DELETE FROM favorite_songs WHERE songKey = :songKey")
-    suspend fun deleteByKey(songKey: String)
+    suspend fun deleteByKey(songKey: String): Int
 
     @Query("SELECT EXISTS(SELECT 1 FROM favorite_songs WHERE songKey = :songKey)")
     fun isFavorite(songKey: String): Flow<Boolean>
@@ -68,10 +68,10 @@ interface PlaylistSongDao {
     suspend fun insert(song: PlaylistSong)
 
     @Query("DELETE FROM playlist_songs WHERE playlistId = :playlistId AND songKey = :songKey")
-    suspend fun delete(playlistId: Long, songKey: String)
+    suspend fun delete(playlistId: Long, songKey: String): Int
 
     @Query("DELETE FROM playlist_songs WHERE playlistId = :playlistId")
-    suspend fun deleteAllForPlaylist(playlistId: Long)
+    suspend fun deleteAllForPlaylist(playlistId: Long): Int
 
     @Query("SELECT * FROM playlist_songs WHERE playlistId = :playlistId ORDER BY position ASC")
     fun getSongsForPlaylist(playlistId: Long): Flow<List<PlaylistSong>>
