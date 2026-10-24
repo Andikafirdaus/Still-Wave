@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -55,7 +56,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.still_wave_music_player.data.model.AlbumSearchResult
 import com.example.still_wave_music_player.data.model.ArtistSearchResult
+import com.example.still_wave_music_player.data.model.SearchAllResult
 import com.example.still_wave_music_player.data.model.Song
+import com.example.still_wave_music_player.data.model.TopResult
+import com.example.still_wave_music_player.data.model.TopResultType
 import com.example.still_wave_music_player.ui.components.AppIcons
 import com.example.still_wave_music_player.ui.components.LibraryStateView
 import com.example.still_wave_music_player.ui.components.ThumbnailArt
@@ -366,6 +370,128 @@ fun SearchScreen(
                                 )
                             }
                         }
+                    }
+                }
+                is OnlineSearchUiState.BerisiSemua -> {
+                    val hasil = state.hasil
+
+                    // 1. Kartu Hasil Teratas
+                    hasil.topResult?.let { top ->
+                        item(key = "semua_top_result") {
+                            TopResultCard(
+                                topResult = top,
+                                onPlaySong = onPlaySong,
+                                onNavigateToArtist = onNavigateToArtist,
+                                onNavigateToAlbum = onNavigateToAlbum,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
+
+                    // 2. Bagian Lagu (maksimal 4 baris + tombol "Lihat semua")
+                    if (hasil.songs.isNotEmpty()) {
+                        item(key = "semua_header_lagu") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Lagu",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary
+                                    )
+                                )
+                                Text(
+                                    text = "Lihat semua",
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Accent
+                                    ),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            onlineSearchViewModel.setCategory(OnlineSearchCategory.LAGU)
+                                        }
+                                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+
+                        items(hasil.songs.take(4), key = { "semua_song_${it.id}" }) { song ->
+                            TrackRowItem(
+                                song = song,
+                                onClick = { onPlaySong(song, emptyList()) },
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                        }
+                    }
+
+                    // 3. Bagian Artis (gulir horizontal)
+                    if (hasil.artists.isNotEmpty()) {
+                        item(key = "semua_header_artis") {
+                            Text(
+                                text = "Artis",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                ),
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 12.dp)
+                            )
+                        }
+
+                        item(key = "semua_row_artis") {
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                items(hasil.artists, key = { "semua_art_${it.browseId}" }) { artist ->
+                                    ArtistCircularItem(
+                                        artist = artist,
+                                        onClick = { onNavigateToArtist(artist.browseId) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 4. Bagian Album (gulir horizontal)
+                    if (hasil.albums.isNotEmpty()) {
+                        item(key = "semua_header_album") {
+                            Text(
+                                text = "Album",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                ),
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 12.dp)
+                            )
+                        }
+
+                        item(key = "semua_row_album") {
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                items(hasil.albums, key = { "semua_alb_${it.browseId}" }) { album ->
+                                    AlbumSquareCard(
+                                        album = album,
+                                        onClick = { onNavigateToAlbum(album.browseId) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    item(key = "semua_bottom_spacer") {
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
                 is OnlineSearchUiState.Berisi -> {
@@ -682,5 +808,190 @@ private fun SearchBarField(
                 )
             }
         }
+    }
+}
+
+/**
+ * Kartu Hasil Teratas untuk tab "Semua".
+ */
+@Composable
+private fun TopResultCard(
+    topResult: TopResult,
+    onPlaySong: (Song, List<Song>) -> Unit,
+    onNavigateToArtist: (String) -> Unit,
+    onNavigateToAlbum: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = "Hasil teratas",
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            ),
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(SurfaceHigh)
+                .border(width = 1.dp, color = Border, shape = RoundedCornerShape(16.dp))
+                .clickable {
+                    when (topResult.type) {
+                        TopResultType.LAGU -> {
+                            topResult.song?.let { onPlaySong(it, emptyList()) }
+                        }
+                        TopResultType.ARTIS -> {
+                            onNavigateToArtist(topResult.id)
+                        }
+                        TopResultType.ALBUM -> {
+                            onNavigateToAlbum(topResult.id)
+                        }
+                    }
+                }
+                .padding(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                val isArtist = topResult.type == TopResultType.ARTIS
+                ThumbnailArt(
+                    thumbnailUrl = topResult.thumbnailUrl,
+                    contentDescription = topResult.title,
+                    modifier = Modifier.size(76.dp),
+                    shape = if (isArtist) CircleShape else RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = topResult.title,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        ),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    val subtitleText = topResult.subtitle ?: when (topResult.type) {
+                        TopResultType.LAGU -> "Lagu"
+                        TopResultType.ARTIS -> "Artis"
+                        TopResultType.ALBUM -> "Album"
+                    }
+
+                    Text(
+                        text = subtitleText,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 13.sp,
+                            color = TextSecondary
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Item artis berfoto bulat dalam deretan horizontal tab "Semua".
+ */
+@Composable
+private fun ArtistCircularItem(
+    artist: ArtistSearchResult,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .width(88.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(vertical = 4.dp)
+    ) {
+        ThumbnailArt(
+            thumbnailUrl = artist.thumbnailUrl,
+            contentDescription = artist.name,
+            modifier = Modifier.size(72.dp),
+            shape = CircleShape
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = artist.name,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = TextPrimary
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            text = "Artis",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = 11.sp,
+                color = TextSecondary
+            ),
+            maxLines = 1
+        )
+    }
+}
+
+/**
+ * Kartu album berformat sampul persegi dalam deretan horizontal tab "Semua".
+ */
+@Composable
+private fun AlbumSquareCard(
+    album: AlbumSearchResult,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .width(110.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(vertical = 4.dp)
+    ) {
+        ThumbnailArt(
+            thumbnailUrl = album.thumbnailUrl,
+            contentDescription = album.title,
+            modifier = Modifier.size(110.dp),
+            shape = RoundedCornerShape(10.dp)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = album.title,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        val sub = if (!album.year.isNullOrBlank()) "${album.artist} • ${album.year}" else album.artist
+        Text(
+            text = sub,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = 11.sp,
+                color = TextSecondary
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }

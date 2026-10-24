@@ -6,7 +6,21 @@
 - [x] Fase 4: Room, Riwayat, Favorit, Daftar Putar, Rekomendasi
 - [x] Fase 5: Prefetch dan Crossfade
 
-## Keputusan
+## Putaran 2: Perbaikan dan Pelengkapan
+- [x] Fase 1: Pencarian "Semua" dengan Hasil Teratas
+- [ ] Fase 2: Antrean dan Variasi Radio
+- [ ] Fase 3: Daftar Putar Lengkap
+- [ ] Fase 4: Beranda dan Rekomendasi
+- [ ] Fase 5: Suasana di Jelajah
+- [ ] Fase 6: Verifikasi dan Periksa Silang
+
+## Keputusan Putaran 2
+- Fase 1: Menambahkan model `TopResultType`, `TopResult`, dan `SearchAllResult` di `ArtistAndAlbum.kt`. Di `YouTubeMusicApi.kt` ditambahkan fungsi `searchAll(kueri)` tanpa params, parser generik `parseSearchAllFromResponse` yang menangkap `musicCardShelfRenderer` untuk Hasil Teratas (klasifikasi artis, album, atau lagu) beserta fallback ke item pertama, pengumpulan shelf lagu, artis, dan album, serta cache memori sesi `searchAllCache`. Di `OnlineSearchViewModel.kt` ditambahkan kategori `OnlineSearchCategory.SEMUA` sebagai bawaan dan state `OnlineSearchUiState.BerisiSemua`. Di `SearchScreen.kt` tab kategori online menampilkan "Semua | Lagu | Artis | Album", kartu Hasil Teratas di posisi atas, bagian Lagu dengan tombol "Lihat semua", deretan gulir horizontal Artis (foto bulat), dan deretan gulir horizontal Album (sampul persegi).
+
+## Belum Selesai Putaran 2
+- Belum ada.
+
+## Keputusan (Putaran 1)
 - Struktur project sudah lengkap dengan Media3, ExoPlayer, NewPipeExtractor, dan Room terkonfigurasi di `app/build.gradle.kts`.
 - Seluruh pengerjaan akan mengikuti aturan ketat: warna solid tanpa gradien, teks bahasa Indonesia tanpa emoji, log "MusikPlayer" tanpa URL/token/body mentah, defensive parsing.
 - Fase 1: Menambahkan klien LRCLIB (dengan pembersihan judul/artis dan fallback pencarian), LrcParser (dukungan multi-timestamp), cache ganda memori & berkas dengan penanda sesi untuk lagu tanpa lirik, serta integrasi UI panel lirik dengan scrolling otomatis dan spring animation. Outer scroll dimatikan saat mode lirik agar gesture tidak berbenturan.

@@ -45,3 +45,34 @@ data class ArtistDetails(
     val albums: List<AlbumSearchResult> = emptyList(),
     val singles: List<AlbumSearchResult> = emptyList()
 )
+
+/**
+ * Tipe entitas untuk Hasil Teratas pencarian "Semua".
+ */
+enum class TopResultType {
+    LAGU, ARTIS, ALBUM
+}
+
+/**
+ * Hasil Teratas kartu utama di tab "Semua".
+ */
+data class TopResult(
+    val type: TopResultType,
+    val id: String,
+    val title: String,
+    val subtitle: String? = null,
+    val thumbnailUrl: String? = null,
+    val song: Song? = null,
+    val artist: ArtistSearchResult? = null,
+    val album: AlbumSearchResult? = null
+)
+
+/**
+ * Hasil gabungan pencarian "Semua": hasil teratas, lagu, artis, dan album.
+ */
+data class SearchAllResult(
+    val topResult: TopResult? = null,
+    val songs: List<Song> = emptyList(),
+    val artists: List<ArtistSearchResult> = emptyList(),
+    val albums: List<AlbumSearchResult> = emptyList()
+)
