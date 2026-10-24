@@ -1,6 +1,7 @@
 package com.example.still_wave_music_player.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,6 +29,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,21 +39,31 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.still_wave_music_player.data.local.getSongKey
 import com.example.still_wave_music_player.data.model.Song
 import com.example.still_wave_music_player.ui.components.AlbumArt
 import com.example.still_wave_music_player.ui.components.AppIcons
 import com.example.still_wave_music_player.ui.components.LibraryStateView
+import com.example.still_wave_music_player.ui.theme.Accent
 import com.example.still_wave_music_player.ui.theme.Background
+import com.example.still_wave_music_player.ui.theme.Border
+import com.example.still_wave_music_player.ui.theme.Surface
+import com.example.still_wave_music_player.ui.theme.SurfaceHigh
+import com.example.still_wave_music_player.ui.theme.TextMuted
 import com.example.still_wave_music_player.ui.theme.TextPrimary
 import com.example.still_wave_music_player.ui.theme.TextSecondary
+import com.example.still_wave_music_player.viewmodels.HomeViewModel
 import com.example.still_wave_music_player.viewmodels.LibraryUiState
 
 /**
  * Layar Beranda:
- * - Menampilkan status perpustakaan (PermissionPrompt / Memuat / Kosong) jika belum Berisi
- * - Saat Berisi:
- *   - Bagian "Baru ditambahkan": 8 lagu terbaru berdasarkan dateAdded
- *   - Bagian "Untukmu": seluruh daftar lagu dari penyimpanan
+ * - Header Beranda (Judul + Pengaturan)
+ * - "Baru diputar" (maksimal 10 lagu unik dari riwayat pemutaran Room)
+ * - "Untuk kamu" (rekomendasi berbasis artis 30 hari terakhir dengan peluruhan nilai)
+ * - "Suasana" (baris chip suasana: Sedih, Galau, Santai, Semangat, Fokus, Romantis, Pesta, Tidur)
+ * - "Sedang populer" (hasil online lagu populer Indonesia)
+ * - "Baru ditambahkan" & "Lagu di perangkat" (jika lagu lokal tersedia)
  */
 @Composable
 fun HomeScreen(
@@ -59,120 +73,74 @@ fun HomeScreen(
     recentlyPlayed: List<Song> = emptyList(),
     onPlaySong: (Song, List<Song>) -> Unit = { _, _ -> },
     onOpenAddToPlaylist: (Song) -> Unit = {},
-    onOpenSettings: () -> Unit = {}
+    onSelectMood: (String) -> Unit = {},
+    onOpenSettings: () -> Unit = {},
+    homeViewModel: HomeViewModel = viewModel()
 ) {
     val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
-    when (libraryState) {
-        is LibraryUiState.Berisi -> {
-            val allSongs = libraryState.daftar
-            val recentlyAdded = remember(allSongs) {
-                allSongs.sortedByDescending { it.dateAdded }.take(8)
-            }
+    // 10 lagu unik dari riwayat
+    val uniqueRecentlyPlayed = remember(recentlyPlayed) {
+        recentlyPlayed.distinctBy { it.getSongKey() }.take(10)
+    }
 
-            LazyColumn(
+    val forYouSongs by homeViewModel.forYouSongs.collectAsState()
+    val trendingSongs by homeViewModel.trendingSongs.collectAsState()
+
+    val moodList = listOf("Sedih", "Galau", "Santai", "Semangat", "Fokus", "Romantis", "Pesta", "Tidur")
+
+    val localSongs = (libraryState as? LibraryUiState.Berisi)?.daftar ?: emptyList()
+    val recentlyAdded = remember(localSongs) {
+        localSongs.sortedByDescending { it.dateAdded }.take(8)
+    }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Background)
+            .statusBarsPadding(),
+        contentPadding = PaddingValues(
+            top = 16.dp,
+            bottom = 164.dp + bottomInset
+        ),
+        verticalArrangement = Arrangement.spacedBy(28.dp)
+    ) {
+        // ── 1. Judul Utama & Tombol Pengaturan ───────────────────────────────
+        item {
+            Row(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(Background)
-                    .statusBarsPadding(),
-                contentPadding = PaddingValues(
-                    top = 16.dp,
-                    bottom = 164.dp + bottomInset
-                ),
-                verticalArrangement = Arrangement.spacedBy(28.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // ── Judul Utama & Tombol Pengaturan ───────────────────────────────────
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Beranda",
-                            style = MaterialTheme.typography.headlineLarge.copy(
-                                fontSize = 30.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            )
-                        )
-                        IconButton(
-                            onClick = onOpenSettings,
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            Icon(
-                                imageVector = AppIcons.Settings,
-                                contentDescription = "Pengaturan",
-                                tint = TextSecondary
-                            )
-                        }
-                    }
+                Text(
+                    text = "Beranda",
+                    style = MaterialTheme.typography.headlineLarge.copy(
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                )
+                IconButton(
+                    onClick = onOpenSettings,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        imageVector = AppIcons.Settings,
+                        contentDescription = "Pengaturan",
+                        tint = TextSecondary
+                    )
                 }
+            }
+        }
 
-                // ── Bagian: Baru diputar (dari riwayat Room) ─────────────────────────
-                if (recentlyPlayed.isNotEmpty()) {
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            Text(
-                                text = "Baru diputar",
-                                style = MaterialTheme.typography.titleLarge.copy(
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = TextPrimary
-                                ),
-                                modifier = Modifier.padding(horizontal = 16.dp)
-                            )
-
-                            LazyRow(
-                                contentPadding = PaddingValues(horizontal = 16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                items(recentlyPlayed, key = { it.id + it.hashCode() }) { song ->
-                                    RecentlyAddedCard(
-                                        song = song,
-                                        onClick = { onPlaySong(song, recentlyPlayed) }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // ── Bagian: Baru ditambahkan ──────────────────────────────────────────
-                if (recentlyAdded.isNotEmpty()) {
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            Text(
-                                text = "Baru ditambahkan",
-                                style = MaterialTheme.typography.titleLarge.copy(
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = TextPrimary
-                                ),
-                                modifier = Modifier.padding(horizontal = 16.dp)
-                            )
-
-                            LazyRow(
-                                contentPadding = PaddingValues(horizontal = 16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                items(recentlyAdded, key = { it.id }) { song ->
-                                    RecentlyAddedCard(
-                                        song = song,
-                                        onClick = { onPlaySong(song, recentlyAdded) }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // ── Bagian: Untukmu ───────────────────────────────────────────────────
-                item {
+        // ── 2. Bagian: Baru diputar (Maksimal 10 lagu unik) ───────────────────
+        if (uniqueRecentlyPlayed.isNotEmpty()) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Text(
-                        text = "Untukmu",
+                        text = "Baru diputar",
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontSize = 20.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -180,60 +148,165 @@ fun HomeScreen(
                         ),
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
-                }
 
-                items(allSongs, key = { it.id }) { song ->
-                    TrackRowItem(
-                        song = song,
-                        onClick = { onPlaySong(song, allSongs) },
-                        onMoreClick = { onOpenAddToPlaylist(song) },
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(uniqueRecentlyPlayed, key = { "recent_${it.getSongKey()}" }) { song ->
+                            SongSquareCard(
+                                song = song,
+                                onClick = { onPlaySong(song, uniqueRecentlyPlayed) }
+                            )
+                        }
+                    }
                 }
             }
         }
-        else -> {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Background)
-                    .statusBarsPadding()
-                    .padding(
-                        top = 16.dp,
-                        bottom = 164.dp + bottomInset
-                    )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+
+        // ── 3. Bagian: Untuk kamu (Rekomendasi Cerdas) ────────────────────────
+        if (forYouSongs.isNotEmpty()) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Text(
-                        text = "Beranda",
-                        style = MaterialTheme.typography.headlineLarge.copy(
-                            fontSize = 30.sp,
-                            fontWeight = FontWeight.Bold,
+                        text = "Untuk kamu",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.SemiBold,
                             color = TextPrimary
-                        )
+                        ),
+                        modifier = Modifier.padding(horizontal = 16.dp)
                     )
-                    IconButton(
-                        onClick = onOpenSettings,
-                        modifier = Modifier.size(48.dp)
+
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Icon(
-                            imageVector = AppIcons.Settings,
-                            contentDescription = "Pengaturan",
-                            tint = TextSecondary
+                        items(forYouSongs, key = { "foryou_${it.getSongKey()}" }) { song ->
+                            SongSquareCard(
+                                song = song,
+                                onClick = { onPlaySong(song, emptyList()) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── 4. Bagian: Suasana (Baris Chip) ──────────────────────────────────
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "Suasana",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    ),
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(moodList) { mood ->
+                        MoodChipItem(
+                            label = mood,
+                            onClick = { onSelectMood(mood) }
                         )
                     }
                 }
+            }
+        }
 
+        // ── 5. Bagian: Sedang populer (Online Trending) ───────────────────────
+        if (trendingSongs.isNotEmpty()) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Text(
+                        text = "Sedang populer",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextPrimary
+                        ),
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(trendingSongs, key = { "trending_${it.getSongKey()}" }) { song ->
+                            SongSquareCard(
+                                song = song,
+                                onClick = { onPlaySong(song, emptyList()) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── 6. Bagian Lagu Lokal: Baru Ditambahkan ────────────────────────────
+        if (recentlyAdded.isNotEmpty()) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Text(
+                        text = "Baru ditambahkan",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextPrimary
+                        ),
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(recentlyAdded, key = { "local_recent_${it.id}" }) { song ->
+                            SongSquareCard(
+                                song = song,
+                                onClick = { onPlaySong(song, recentlyAdded) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── 7. Bagian Lagu Lokal: Daftar Vertikal ────────────────────────────
+        if (localSongs.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Lagu di perangkat",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    ),
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
+
+            items(localSongs, key = { "all_local_${it.id}" }) { song ->
+                TrackRowItem(
+                    song = song,
+                    onClick = { onPlaySong(song, localSongs) },
+                    onMoreClick = { onOpenAddToPlaylist(song) },
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
+        } else if (libraryState !is LibraryUiState.Berisi) {
+            // Tampilan info jika izin belum ada atau lagu lokal kosong
+            item {
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp),
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     LibraryStateView(
@@ -248,17 +321,15 @@ fun HomeScreen(
 }
 
 /**
- * Kartu persegi untuk bagian Baru ditambahkan.
- * Sampul warna solid dengan sudut 12dp, judul dan artis di bawahnya.
+ * Kartu lagu persegi untuk baris horizontal (Baru diputar, Untuk kamu, Sedang populer).
  */
 @Composable
-private fun RecentlyAddedCard(
+private fun SongSquareCard(
     song: Song,
-    onClick: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onClick: () -> Unit
 ) {
     Column(
-        modifier = modifier
+        modifier = Modifier
             .width(136.dp)
             .clip(RoundedCornerShape(12.dp))
             .clickable { onClick() }
@@ -298,8 +369,37 @@ private fun RecentlyAddedCard(
 }
 
 /**
- * Baris item lagu untuk daftar vertikal.
- * Sampul kecil 52dp sudut 12dp, judul 15sp, artis 12sp, dan tombol titik tiga di kanan.
+ * Chip suasana dengan warna solid dan sudut melengkung.
+ */
+@Composable
+private fun MoodChipItem(
+    label: String,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(12.dp)
+    Box(
+        modifier = Modifier
+            .clip(shape)
+            .border(width = 1.dp, color = Border, shape = shape)
+            .background(SurfaceHigh)
+            .clickable { onClick() }
+            .sizeIn(minHeight = 38.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = TextPrimary
+            )
+        )
+    }
+}
+
+/**
+ * Baris item lagu untuk daftar vertikal dengan tombol MoreVert.
  */
 @Composable
 fun TrackRowItem(

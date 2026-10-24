@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -35,6 +36,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.still_wave_music_player.data.local.getSongKey
 import com.example.still_wave_music_player.data.model.Song
 import com.example.still_wave_music_player.ui.components.AddToPlaylistSheet
 import com.example.still_wave_music_player.ui.components.FloatingNavBar
@@ -91,8 +93,11 @@ fun AppRoot(
             id = "", title = "", artist = ""
         )
     ).collectAsStateWithLifecycle(initialValue = false)
-    val recentlyPlayed by playerViewModel.historyRepository.getRecent(8)
+    val rawRecentHistory by playerViewModel.historyRepository.getRecent(50)
         .collectAsStateWithLifecycle(initialValue = emptyList())
+    val recentlyPlayed = remember(rawRecentHistory) {
+        rawRecentHistory.distinctBy { it.getSongKey() }.take(10)
+    }
 
     var isPlayerOpen by rememberSaveable { mutableStateOf(false) }
     var isSettingsOpen by rememberSaveable { mutableStateOf(false) }
@@ -158,6 +163,9 @@ fun AppRoot(
                     recentlyPlayed = recentlyPlayed,
                     onPlaySong = handlePlaySong,
                     onOpenAddToPlaylist = { songForAddToPlaylist = it },
+                    onSelectMood = { _ ->
+                        navController.navigate(Screen.Jelajah.route)
+                    },
                     onOpenSettings = { isSettingsOpen = true }
                 )
             }

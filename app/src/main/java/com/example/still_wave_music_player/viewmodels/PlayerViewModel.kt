@@ -376,6 +376,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                             if (listened >= threshold) {
                                 historyRecordedForCurrent = true
                                 val songToRecord = updatedSong ?: currentSong
+                                Log.d("MusikPlayer", "riwayat tersimpan songKey=$songKey")
                                 viewModelScope.launch(Dispatchers.IO) {
                                     historyRepository.addHistory(songToRecord)
                                 }
