@@ -72,6 +72,7 @@ fun ArtistScreen(
     onPlaySong: (Song, List<Song>) -> Unit,
     onPlayRadio: (Song) -> Unit,
     onNavigateToAlbum: (String) -> Unit,
+    onOpenAddToPlaylist: (Song) -> Unit = {},
     artistViewModel: ArtistViewModel = viewModel()
 ) {
     val uiState by artistViewModel.uiState.collectAsStateWithLifecycle()
@@ -302,6 +303,18 @@ fun ArtistScreen(
                                             color = TextSecondary
                                         ),
                                         modifier = Modifier.padding(start = 12.dp)
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = { onOpenAddToPlaylist(song) },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = AppIcons.MoreVert,
+                                        contentDescription = "Menu aksi lagu ${song.title}",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
                             }

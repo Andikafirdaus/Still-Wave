@@ -91,6 +91,7 @@ fun SearchScreen(
     onPlaySong: (Song, List<Song>) -> Unit = { _, _ -> },
     onNavigateToArtist: (String) -> Unit = {},
     onNavigateToAlbum: (String) -> Unit = {},
+    onOpenAddToPlaylist: (Song) -> Unit = {},
     onlineSearchViewModel: OnlineSearchViewModel = viewModel()
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -256,6 +257,7 @@ fun SearchScreen(
                             TrackRowItem(
                                 song = song,
                                 onClick = { onPlaySong(song, filteredLocalSongs) },
+                                onMoreClick = { onOpenAddToPlaylist(song) },
                                 modifier = Modifier.padding(horizontal = 16.dp)
                             )
                         }
@@ -427,6 +429,7 @@ fun SearchScreen(
                             TrackRowItem(
                                 song = song,
                                 onClick = { onPlaySong(song, emptyList()) },
+                                onMoreClick = { onOpenAddToPlaylist(song) },
                                 modifier = Modifier.padding(horizontal = 16.dp)
                             )
                         }
@@ -501,6 +504,7 @@ fun SearchScreen(
                             onClick = {
                                 onPlaySong(song, state.daftar)
                             },
+                            onMoreClick = { onOpenAddToPlaylist(song) },
                             modifier = Modifier.padding(horizontal = 16.dp)
                         )
                     }

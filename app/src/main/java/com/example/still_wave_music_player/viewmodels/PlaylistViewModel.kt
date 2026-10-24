@@ -44,9 +44,37 @@ class PlaylistViewModel(application: Application) : AndroidViewModel(application
     fun getSongsForPlaylist(playlistId: Long): Flow<List<Song>> =
         repo.getSongsForPlaylist(playlistId)
 
-    fun addSongToPlaylist(playlistId: Long, song: Song) {
+    suspend fun isSongInPlaylist(playlistId: Long, song: Song): Boolean =
+        repo.isSongInPlaylist(playlistId, song)
+
+    suspend fun getPlaylistById(playlistId: Long): Playlist? =
+        repo.getPlaylistById(playlistId)
+
+    fun addSongToPlaylist(
+        playlistId: Long,
+        song: Song,
+        onComplete: ((Boolean) -> Unit)? = null
+    ) {
         viewModelScope.launch {
-            repo.addSongToPlaylist(playlistId, song)
+            val success = repo.addSongToPlaylist(playlistId, song)
+            onComplete?.invoke(success)
+        }
+    }
+
+    fun createPlaylistAndAddSong(
+        name: String,
+        song: Song,
+        onComplete: ((Boolean, String) -> Unit)? = null
+    ) {
+        viewModelScope.launch {
+            val cleanName = name.trim()
+            val newId = repo.createPlaylist(cleanName)
+            if (newId > 0) {
+                val success = repo.addSongToPlaylist(newId, song)
+                onComplete?.invoke(success, cleanName)
+            } else {
+                onComplete?.invoke(false, cleanName)
+            }
         }
     }
 

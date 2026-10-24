@@ -58,6 +58,7 @@ fun HomeScreen(
     onPermissionGranted: () -> Unit,
     recentlyPlayed: List<Song> = emptyList(),
     onPlaySong: (Song, List<Song>) -> Unit = { _, _ -> },
+    onOpenAddToPlaylist: (Song) -> Unit = {},
     onOpenSettings: () -> Unit = {}
 ) {
     val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -185,6 +186,7 @@ fun HomeScreen(
                     TrackRowItem(
                         song = song,
                         onClick = { onPlaySong(song, allSongs) },
+                        onMoreClick = { onOpenAddToPlaylist(song) },
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
                 }
@@ -303,6 +305,7 @@ private fun RecentlyAddedCard(
 fun TrackRowItem(
     song: Song,
     onClick: () -> Unit = {},
+    onMoreClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -351,7 +354,7 @@ fun TrackRowItem(
         }
 
         IconButton(
-            onClick = { /* Menu aksi lagu */ },
+            onClick = { onMoreClick?.invoke() },
             modifier = Modifier.size(48.dp)
         ) {
             Icon(

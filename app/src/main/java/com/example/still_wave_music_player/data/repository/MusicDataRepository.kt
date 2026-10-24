@@ -144,13 +144,38 @@ class PlaylistRepository(
         }
     }
 
-    suspend fun addSongToPlaylist(playlistId: Long, song: Song) {
-        try {
+    suspend fun getPlaylistById(playlistId: Long): Playlist? {
+        return try {
+            playlistDao.getById(playlistId)
+        } catch (e: Exception) {
+            Log.e(TAG, "Gagal membaca daftar putar id=$playlistId: ${e.message}")
+            null
+        }
+    }
+
+    suspend fun isSongInPlaylist(playlistId: Long, song: Song): Boolean {
+        return try {
+            val songs = songDao.getSongsForPlaylistSuspend(playlistId)
+            val key = song.getSongKey()
+            songs.any { it.songKey == key }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun addSongToPlaylist(playlistId: Long, song: Song): Boolean {
+        return try {
             val existing = songDao.getSongsForPlaylistSuspend(playlistId)
+            val key = song.getSongKey()
+            if (existing.any { it.songKey == key }) {
+                return false // Duplikat tidak ditambahkan
+            }
             val position = existing.size
             songDao.insert(song.toPlaylistSong(playlistId, position))
+            true
         } catch (e: Exception) {
             Log.e(TAG, "Gagal menambah lagu ke daftar putar: ${e.message}")
+            false
         }
     }
 

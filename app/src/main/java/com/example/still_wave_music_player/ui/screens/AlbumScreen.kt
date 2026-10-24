@@ -63,6 +63,7 @@ fun AlbumScreen(
     onBack: () -> Unit,
     onPlaySongs: (List<Song>, Int) -> Unit,
     onNavigateToArtist: (String) -> Unit = {},
+    onOpenAddToPlaylist: (Song) -> Unit = {},
     albumViewModel: AlbumViewModel = viewModel()
 ) {
     val uiState by albumViewModel.uiState.collectAsStateWithLifecycle()
@@ -325,6 +326,18 @@ fun AlbumScreen(
                                             color = TextSecondary
                                         ),
                                         modifier = Modifier.padding(start = 12.dp)
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = { onOpenAddToPlaylist(song) },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = AppIcons.MoreVert,
+                                        contentDescription = "Menu aksi lagu ${song.title}",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
                             }

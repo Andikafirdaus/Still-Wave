@@ -36,6 +36,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.still_wave_music_player.data.model.Song
+import com.example.still_wave_music_player.ui.components.AddToPlaylistSheet
 import com.example.still_wave_music_player.ui.components.FloatingNavBar
 import com.example.still_wave_music_player.ui.components.MiniPlayer
 import com.example.still_wave_music_player.ui.components.SettingsSheet
@@ -46,6 +47,7 @@ import com.example.still_wave_music_player.ui.screens.ExploreScreen
 import com.example.still_wave_music_player.ui.screens.HomeScreen
 import com.example.still_wave_music_player.ui.screens.LibraryScreen
 import com.example.still_wave_music_player.ui.screens.PlayerScreen
+import com.example.still_wave_music_player.ui.screens.PlaylistScreen
 import com.example.still_wave_music_player.ui.screens.SearchScreen
 import com.example.still_wave_music_player.ui.theme.Background
 import com.example.still_wave_music_player.ui.theme.Motion
@@ -94,6 +96,7 @@ fun AppRoot(
 
     var isPlayerOpen by rememberSaveable { mutableStateOf(false) }
     var isSettingsOpen by rememberSaveable { mutableStateOf(false) }
+    var songForAddToPlaylist by remember { mutableStateOf<Song?>(null) }
 
     // State dan launcher untuk izin POST_NOTIFICATIONS (Android 13+)
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
@@ -154,6 +157,7 @@ fun AppRoot(
                     onPermissionGranted = libraryViewModel::muat,
                     recentlyPlayed = recentlyPlayed,
                     onPlaySong = handlePlaySong,
+                    onOpenAddToPlaylist = { songForAddToPlaylist = it },
                     onOpenSettings = { isSettingsOpen = true }
                 )
             }
@@ -162,9 +166,16 @@ fun AppRoot(
             }
             composable(Screen.Pustaka.route) {
                 LibraryScreen(
+                    libraryState = libraryState,
+                    requiredPermission = libraryViewModel.getRequiredPermission(),
+                    onPermissionGranted = libraryViewModel::muat,
                     playerViewModel = playerViewModel,
                     playlistViewModel = playlistViewModel,
                     onPlaySong = handlePlaySong,
+                    onNavigateToPlaylist = { playlistId ->
+                        navController.navigate(Screen.DaftarPutar.createRoute(playlistId))
+                    },
+                    onOpenAddToPlaylist = { songForAddToPlaylist = it },
                     onOpenSettings = { isSettingsOpen = true }
                 )
             }
@@ -179,7 +190,8 @@ fun AppRoot(
                     },
                     onNavigateToAlbum = { browseId ->
                         navController.navigate(Screen.Album.createRoute(browseId))
-                    }
+                    },
+                    onOpenAddToPlaylist = { songForAddToPlaylist = it }
                 )
             }
             composable(Screen.Artis.route) { backStackEntry ->
@@ -197,7 +209,8 @@ fun AppRoot(
                     },
                     onNavigateToAlbum = { albumBrowseId ->
                         navController.navigate(Screen.Album.createRoute(albumBrowseId))
-                    }
+                    },
+                    onOpenAddToPlaylist = { songForAddToPlaylist = it }
                 )
             }
             composable(Screen.Album.route) { backStackEntry ->
@@ -214,7 +227,22 @@ fun AppRoot(
                     },
                     onNavigateToArtist = { artistBrowseId ->
                         navController.navigate(Screen.Artis.createRoute(artistBrowseId))
-                    }
+                    },
+                    onOpenAddToPlaylist = { songForAddToPlaylist = it }
+                )
+            }
+            composable(Screen.DaftarPutar.route) { backStackEntry ->
+                val idStr = backStackEntry.arguments?.getString("id")
+                val playlistId = idStr?.toLongOrNull() ?: return@composable
+                PlaylistScreen(
+                    playlistId = playlistId,
+                    playlistViewModel = playlistViewModel,
+                    onBack = { navController.popBackStack() },
+                    onPlaySong = { song, list ->
+                        requestNotificationPermissionIfNeeded()
+                        playerViewModel.putar(song, list, QueueSource.LIST)
+                    },
+                    onOpenAddToPlaylist = { songForAddToPlaylist = it }
                 )
             }
         }
@@ -315,6 +343,7 @@ fun AppRoot(
                     onJumpToQueue = playerViewModel::lompatKeAntrean,
                     onRemoveFromQueue = playerViewModel::hapusDariAntrean,
                     onClearQueue = playerViewModel::bersihkanAntrean,
+                    onOpenAddToPlaylist = { songForAddToPlaylist = song },
                     onNavigateToArtist = { browseId ->
                         isPlayerOpen = false
                         navController.navigate(Screen.Artis.createRoute(browseId))
@@ -335,6 +364,15 @@ fun AppRoot(
                 crossfadeSeconds = crossfadeSeconds,
                 onCrossfadeChanged = playerViewModel::setCrossfadeSeconds,
                 onDismiss = { isSettingsOpen = false }
+            )
+        }
+
+        // ── 6. Bottom Sheet Tambah ke Daftar Putar ────────────────────────────
+        songForAddToPlaylist?.let { targetSong ->
+            AddToPlaylistSheet(
+                song = targetSong,
+                playlistViewModel = playlistViewModel,
+                onDismissRequest = { songForAddToPlaylist = null }
             )
         }
     }

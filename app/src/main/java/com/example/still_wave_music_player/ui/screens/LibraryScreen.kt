@@ -1,5 +1,7 @@
 package com.example.still_wave_music_player.ui.screens
 
+import android.content.Context
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -41,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -49,38 +52,51 @@ import com.example.still_wave_music_player.data.local.Playlist
 import com.example.still_wave_music_player.data.model.Song
 import com.example.still_wave_music_player.ui.components.AlbumArt
 import com.example.still_wave_music_player.ui.components.AppIcons
+import com.example.still_wave_music_player.ui.components.LibraryStateView
 import com.example.still_wave_music_player.ui.theme.Accent
 import com.example.still_wave_music_player.ui.theme.Background
 import com.example.still_wave_music_player.ui.theme.Border
 import com.example.still_wave_music_player.ui.theme.Surface
 import com.example.still_wave_music_player.ui.theme.SurfaceHigh
+import com.example.still_wave_music_player.ui.theme.TextMuted
 import com.example.still_wave_music_player.ui.theme.TextPrimary
 import com.example.still_wave_music_player.ui.theme.TextSecondary
+import com.example.still_wave_music_player.viewmodels.LibraryUiState
 import com.example.still_wave_music_player.viewmodels.PlayerViewModel
 import com.example.still_wave_music_player.viewmodels.PlaylistViewModel
 
 /**
  * Layar Pustaka:
- * - Chip tab: "Daftar putar" | "Favorit" | "Riwayat"
- * - Tab Daftar putar: daftar Room Playlist dengan tombol buat, ubah nama, hapus
- * - Tab Favorit: daftar FavoriteSong dari Room
- * - Tab Riwayat: daftar PlayHistory dari Room
+ * - 4 tab yang dapat digulir mendatar: "Di HP | Favorit | Daftar putar | Riwayat"
+ * - Tab "Di HP": menampilkan lagu lokal dari penyimpanan perangkat
+ * - Tab "Favorit": daftar lagu favorit dengan tombol Putar dan Acak
+ * - Tab "Daftar putar": daftar Room Playlist dengan aksi buat, ubah nama, hapus, dan klik membuka PlaylistScreen
+ * - Tab "Riwayat": daftar riwayat pemutaran
  */
 @Composable
 fun LibraryScreen(
+    libraryState: LibraryUiState,
+    requiredPermission: String,
+    onPermissionGranted: () -> Unit,
     playerViewModel: PlayerViewModel,
     playlistViewModel: PlaylistViewModel,
     onPlaySong: (Song, List<Song>) -> Unit = { _, _ -> },
+    onNavigateToPlaylist: (Long) -> Unit = {},
+    onOpenAddToPlaylist: (Song) -> Unit = {},
     onOpenSettings: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val filterOptions = listOf("Daftar putar", "Favorit", "Riwayat")
-    var selectedFilter by remember { mutableStateOf("Daftar putar") }
+    val filterOptions = listOf("Di HP", "Favorit", "Daftar putar", "Riwayat")
+    var selectedFilter by remember { mutableStateOf("Di HP") }
 
-    // Ambil data dari Room via Flow
+    // Ambil data Room via Flow
     val playlists by playlistViewModel.playlists.collectAsState(initial = emptyList())
-    val favorites by playerViewModel.getFavorites().collectAsState(initial = emptyList())
-    val history by playerViewModel.historyRepository.getRecent(100).collectAsState(initial = emptyList())
+    val rawFavorites by playerViewModel.getFavorites().collectAsState(initial = emptyList())
+    val rawHistory by playerViewModel.historyRepository.getRecent(100).collectAsState(initial = emptyList())
+
+    val favorites = remember(rawFavorites, context) { filterAvailableSongs(context, rawFavorites) }
+    val history = remember(rawHistory, context) { filterAvailableSongs(context, rawHistory) }
 
     // Dialog state
     var showCreateDialog by remember { mutableStateOf(false) }
@@ -118,7 +134,7 @@ fun LibraryScreen(
             }
         }
 
-        // ── Chip Tab ────────────────────────────────────────────────────────────
+        // ── Chip Tab (4 Tab Gulir Mendatar) ─────────────────────────────────────
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -136,14 +152,12 @@ fun LibraryScreen(
 
         // ── Konten Tab ──────────────────────────────────────────────────────────
         when (selectedFilter) {
-            "Daftar putar" -> PlaylistTab(
-                playlists = playlists,
-                playerViewModel = playerViewModel,
-                playlistViewModel = playlistViewModel,
+            "Di HP" -> LocalDeviceTab(
+                libraryState = libraryState,
+                requiredPermission = requiredPermission,
+                onPermissionGranted = onPermissionGranted,
                 onPlaySong = onPlaySong,
-                onCreateNew = { showCreateDialog = true },
-                onRename = { showRenameDialog = it },
-                onDelete = { showDeleteDialog = it },
+                onOpenAddToPlaylist = onOpenAddToPlaylist,
                 bottomInset = bottomInset.value
             )
 
@@ -151,12 +165,24 @@ fun LibraryScreen(
                 songs = favorites,
                 onPlaySong = onPlaySong,
                 onRemoveFavorite = { playerViewModel.toggleFavorite(it) },
+                onOpenAddToPlaylist = onOpenAddToPlaylist,
+                bottomInset = bottomInset.value
+            )
+
+            "Daftar putar" -> PlaylistTab(
+                playlists = playlists,
+                playlistViewModel = playlistViewModel,
+                onNavigateToPlaylist = onNavigateToPlaylist,
+                onCreateNew = { showCreateDialog = true },
+                onRename = { showRenameDialog = it },
+                onDelete = { showDeleteDialog = it },
                 bottomInset = bottomInset.value
             )
 
             "Riwayat" -> HistoryTab(
                 songs = history,
                 onPlaySong = onPlaySong,
+                onOpenAddToPlaylist = onOpenAddToPlaylist,
                 bottomInset = bottomInset.value
             )
         }
@@ -290,7 +316,7 @@ fun LibraryScreen(
                         showDeleteDialog = null
                     }
                 ) {
-                    Text("Hapus", color = TextPrimary)
+                    Text("Hapus", color = Accent)
                 }
             },
             dismissButton = {
@@ -303,15 +329,272 @@ fun LibraryScreen(
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Tab Daftar Putar
+// Tab Di HP (Lagu Lokal)
+// ──────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun LocalDeviceTab(
+    libraryState: LibraryUiState,
+    requiredPermission: String,
+    onPermissionGranted: () -> Unit,
+    onPlaySong: (Song, List<Song>) -> Unit,
+    onOpenAddToPlaylist: (Song) -> Unit,
+    bottomInset: Float
+) {
+    val context = LocalContext.current
+
+    when (libraryState) {
+        is LibraryUiState.Berisi -> {
+            val allSongs = libraryState.daftar
+            val availableSongs = remember(allSongs, context) {
+                filterAvailableSongs(context, allSongs)
+            }
+
+            if (availableSongs.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Tidak ada lagu di penyimpanan perangkat",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 15.sp,
+                            color = TextSecondary
+                        )
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 16.dp, end = 16.dp,
+                        bottom = (148 + bottomInset).dp
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(availableSongs, key = { it.id }) { song ->
+                        TrackRowItem(
+                            song = song,
+                            onClick = { onPlaySong(song, availableSongs) },
+                            onMoreClick = { onOpenAddToPlaylist(song) }
+                        )
+                    }
+                }
+            }
+        }
+        else -> {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                LibraryStateView(
+                    state = libraryState,
+                    requiredPermission = requiredPermission,
+                    onPermissionGranted = onPermissionGranted
+                )
+            }
+        }
+    }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Tab Favorit (dengan tombol Putar & Acak)
+// ──────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun FavoritesTab(
+    songs: List<Song>,
+    onPlaySong: (Song, List<Song>) -> Unit,
+    onRemoveFavorite: (Song) -> Unit,
+    onOpenAddToPlaylist: (Song) -> Unit,
+    bottomInset: Float
+) {
+    if (songs.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Belum ada favorit",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 15.sp,
+                    color = TextSecondary
+                )
+            )
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = 16.dp, end = 16.dp,
+                bottom = (148 + bottomInset).dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            // Tombol Putar & Acak
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Tombol Putar
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Accent)
+                            .clickable {
+                                songs.firstOrNull()?.let { first ->
+                                    onPlaySong(first, songs)
+                                }
+                            }
+                            .padding(vertical = 12.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = AppIcons.Play,
+                            contentDescription = "Putar",
+                            tint = TextPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Putar",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    }
+
+                    // Tombol Acak
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(SurfaceHigh)
+                            .clickable {
+                                val shuffled = songs.shuffled()
+                                shuffled.firstOrNull()?.let { first ->
+                                    onPlaySong(first, shuffled)
+                                }
+                            }
+                            .padding(vertical = 12.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = AppIcons.Shuffle,
+                            contentDescription = "Acak",
+                            tint = TextPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Acak",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    }
+                }
+            }
+
+            items(songs, key = { it.id }) { song ->
+                FavoriteSongRow(
+                    song = song,
+                    onClick = { onPlaySong(song, songs) },
+                    onRemove = { onRemoveFavorite(song) },
+                    onOpenAddToPlaylist = { onOpenAddToPlaylist(song) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FavoriteSongRow(
+    song: Song,
+    onClick: () -> Unit,
+    onRemove: () -> Unit,
+    onOpenAddToPlaylist: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AlbumArt(
+            song = song,
+            modifier = Modifier.size(52.dp),
+            shape = RoundedCornerShape(12.dp),
+            sizeDp = 52.dp
+        )
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = song.title,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = TextPrimary
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = song.artist,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 12.sp,
+                    color = TextSecondary
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        IconButton(onClick = onOpenAddToPlaylist, modifier = Modifier.size(40.dp)) {
+            Icon(
+                imageVector = AppIcons.MoreVert,
+                contentDescription = "Menu opsi lagu",
+                tint = TextSecondary,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+
+        IconButton(onClick = onRemove, modifier = Modifier.size(40.dp)) {
+            Icon(
+                imageVector = AppIcons.FavoriteFilled,
+                contentDescription = "Hapus dari favorit",
+                tint = Accent,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Tab Daftar Putar (Membuka PlaylistScreen saat diketuk)
 // ──────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun PlaylistTab(
     playlists: List<Playlist>,
-    playerViewModel: PlayerViewModel,
     playlistViewModel: PlaylistViewModel,
-    onPlaySong: (Song, List<Song>) -> Unit,
+    onNavigateToPlaylist: (Long) -> Unit,
     onCreateNew: () -> Unit,
     onRename: (Playlist) -> Unit,
     onDelete: (Playlist) -> Unit,
@@ -384,7 +667,7 @@ private fun PlaylistTab(
                 PlaylistRowItem(
                     playlist = playlist,
                     playlistViewModel = playlistViewModel,
-                    onPlaySong = onPlaySong,
+                    onClick = { onNavigateToPlaylist(playlist.id) },
                     onRename = { onRename(playlist) },
                     onDelete = { onDelete(playlist) }
                 )
@@ -397,7 +680,7 @@ private fun PlaylistTab(
 private fun PlaylistRowItem(
     playlist: Playlist,
     playlistViewModel: PlaylistViewModel,
-    onPlaySong: (Song, List<Song>) -> Unit,
+    onClick: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -408,9 +691,7 @@ private fun PlaylistRowItem(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .clickable {
-                if (songs.isNotEmpty()) onPlaySong(songs.first(), songs)
-            }
+            .clickable(onClick = onClick)
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -484,53 +765,6 @@ private fun PlaylistRowItem(
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Tab Favorit
-// ──────────────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun FavoritesTab(
-    songs: List<Song>,
-    onPlaySong: (Song, List<Song>) -> Unit,
-    onRemoveFavorite: (Song) -> Unit,
-    bottomInset: Float
-) {
-    if (songs.isEmpty()) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "Belum ada favorit",
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 15.sp,
-                    color = TextSecondary
-                )
-            )
-        }
-    } else {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = 16.dp, end = 16.dp,
-                bottom = (148 + bottomInset).dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            items(songs, key = { it.id }) { song ->
-                TrackRowItemWithAction(
-                    song = song,
-                    onClick = { onPlaySong(song, songs) },
-                    actionIcon = AppIcons.FavoriteFilled,
-                    actionDescription = "Hapus dari favorit",
-                    actionTint = Accent,
-                    onAction = { onRemoveFavorite(song) }
-                )
-            }
-        }
-    }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
 // Tab Riwayat
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -538,6 +772,7 @@ private fun FavoritesTab(
 private fun HistoryTab(
     songs: List<Song>,
     onPlaySong: (Song, List<Song>) -> Unit,
+    onOpenAddToPlaylist: (Song) -> Unit,
     bottomInset: Float
 ) {
     if (songs.isEmpty()) {
@@ -566,6 +801,7 @@ private fun HistoryTab(
                 TrackRowItem(
                     song = song,
                     onClick = { onPlaySong(song, songs) },
+                    onMoreClick = { onOpenAddToPlaylist(song) },
                     modifier = Modifier
                 )
             }
@@ -577,76 +813,6 @@ private fun HistoryTab(
 // Komponen bersama
 // ──────────────────────────────────────────────────────────────────────────────
 
-/**
- * Baris item lagu dengan aksi kustom di sisi kanan (mis. hapus favorit).
- */
-@Composable
-private fun TrackRowItemWithAction(
-    song: Song,
-    onClick: () -> Unit,
-    actionIcon: androidx.compose.ui.graphics.vector.ImageVector,
-    actionDescription: String,
-    actionTint: androidx.compose.ui.graphics.Color,
-    onAction: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable { onClick() }
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        AlbumArt(
-            song = song,
-            modifier = Modifier.size(52.dp),
-            shape = RoundedCornerShape(12.dp),
-            sizeDp = 52.dp
-        )
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = song.title,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = TextPrimary
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = song.artist,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontSize = 12.sp,
-                    color = TextSecondary
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
-        IconButton(onClick = onAction, modifier = Modifier.size(48.dp)) {
-            Icon(
-                imageVector = actionIcon,
-                contentDescription = actionDescription,
-                tint = actionTint,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-    }
-}
-
-/**
- * Chip penyaring dengan sudut 12dp dan warna solid.
- */
 @Composable
 private fun FilterChipItem(
     label: String,
@@ -680,5 +846,21 @@ private fun FilterChipItem(
                 color = textColor
             )
         )
+    }
+}
+
+/**
+ * Memeriksa apakah file audio lokal masih dapat dibuka; jika tidak ada, dilewati dengan aman.
+ */
+private fun filterAvailableSongs(context: Context, songs: List<Song>): List<Song> {
+    return songs.filter { song ->
+        if (!song.videoId.isNullOrBlank()) return@filter true
+        val uriStr = song.contentUri ?: return@filter false
+        try {
+            val uri = Uri.parse(uriStr)
+            context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { true } ?: false
+        } catch (e: Exception) {
+            false
+        }
     }
 }
