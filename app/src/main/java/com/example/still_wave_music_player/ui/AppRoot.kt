@@ -130,6 +130,8 @@ fun AppRoot(
         playerViewModel.putar(song, list)
     }
 
+    var pendingMood by remember { mutableStateOf<String?>(null) }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -163,14 +165,26 @@ fun AppRoot(
                     recentlyPlayed = recentlyPlayed,
                     onPlaySong = handlePlaySong,
                     onOpenAddToPlaylist = { songForAddToPlaylist = it },
-                    onSelectMood = { _ ->
+                    onSelectMood = { mood ->
+                        pendingMood = mood
                         navController.navigate(Screen.Jelajah.route)
                     },
                     onOpenSettings = { isSettingsOpen = true }
                 )
             }
             composable(Screen.Jelajah.route) {
-                ExploreScreen()
+                ExploreScreen(
+                    initialMood = pendingMood,
+                    onMoodConsumed = { pendingMood = null },
+                    onPlaySong = handlePlaySong,
+                    onPlayAll = { songs ->
+                        if (songs.isNotEmpty()) {
+                            requestNotificationPermissionIfNeeded()
+                            playerViewModel.putar(songs.first(), songs, QueueSource.SINGLE_ONLINE)
+                        }
+                    },
+                    onOpenAddToPlaylist = { songForAddToPlaylist = it }
+                )
             }
             composable(Screen.Pustaka.route) {
                 LibraryScreen(
