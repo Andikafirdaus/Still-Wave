@@ -298,6 +298,8 @@ fun AppRoot(
                     isShuffle = playerState.isShuffle,
                     repeatMode = playerState.repeatMode,
                     isFavorite = isFavorite,
+                    queue = playerState.queue,
+                    isRadioQueue = playerState.isRadioQueue,
                     onClose = { isPlayerOpen = false },
                     onTogglePlayPause = {
                         requestNotificationPermissionIfNeeded()
@@ -310,6 +312,9 @@ fun AppRoot(
                     onToggleShuffle = playerViewModel::toggleAcak,
                     onChangeRepeatMode = playerViewModel::gantiModeUlang,
                     onToggleFavorite = { playerViewModel.toggleFavorite(song) },
+                    onJumpToQueue = playerViewModel::lompatKeAntrean,
+                    onRemoveFromQueue = playerViewModel::hapusDariAntrean,
+                    onClearQueue = playerViewModel::bersihkanAntrean,
                     onNavigateToArtist = { browseId ->
                         isPlayerOpen = false
                         navController.navigate(Screen.Artis.createRoute(browseId))

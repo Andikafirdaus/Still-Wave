@@ -800,5 +800,50 @@ object AppIcons {
             }
         }.build()
     }
+
+    /**
+     * Ikon antrean musik (QueueMusic).
+     */
+    val QueueMusic: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "QueueMusic",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(15f, 6f)
+                horizontalLineTo(3f)
+                verticalLineTo(8f)
+                horizontalLineTo(15f)
+                verticalLineTo(6f)
+                close()
+                moveTo(15f, 10f)
+                horizontalLineTo(3f)
+                verticalLineTo(12f)
+                horizontalLineTo(15f)
+                verticalLineTo(10f)
+                close()
+                moveTo(3f, 16f)
+                horizontalLineTo(11f)
+                verticalLineTo(14f)
+                horizontalLineTo(3f)
+                verticalLineTo(16f)
+                close()
+                moveTo(17f, 6f)
+                verticalLineTo(14.18f)
+                curveTo(16.69f, 14.07f, 16.35f, 14f, 16f, 14f)
+                curveTo(14.34f, 14f, 13f, 15.34f, 13f, 17f)
+                curveTo(13f, 18.66f, 14.34f, 20f, 16f, 20f)
+                curveTo(17.66f, 20f, 19f, 18.66f, 19f, 17f)
+                verticalLineTo(8f)
+                horizontalLineTo(22f)
+                verticalLineTo(6f)
+                horizontalLineTo(17f)
+                close()
+            }
+        }.build()
+    }
 }
 

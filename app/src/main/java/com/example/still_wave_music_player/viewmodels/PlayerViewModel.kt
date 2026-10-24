@@ -63,7 +63,8 @@ data class PlayerUiState(
     val queue: List<Song> = emptyList(),
     val isShuffle: Boolean = false,
     val repeatMode: RepeatMode = RepeatMode.OFF,
-    val isBuffering: Boolean = false
+    val isBuffering: Boolean = false,
+    val isRadioQueue: Boolean = false
 )
 
 /**
@@ -405,6 +406,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         val isSingleOnline = (daftar.isEmpty() || daftar.size == 1) && !song.videoId.isNullOrBlank()
         queueSource = source ?: if (isSingleOnline) QueueSource.SINGLE_ONLINE else QueueSource.COLLECTION
+        val isRadio = queueSource == QueueSource.SINGLE_ONLINE || queueSource == QueueSource.RADIO
         song.videoId?.let { playedVideoIds.add(it) }
 
         // Reset pelacak riwayat untuk lagu baru
@@ -426,7 +428,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 currentSong = targetSong,
                 progress = 0f,
                 currentPositionMs = 0L,
-                isBuffering = true
+                isBuffering = true,
+                isRadioQueue = isRadio
             )
         }
 
@@ -499,23 +502,32 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun fetchAndAppendRadio(seedVideoId: String) {
         if (isFetchingRadio) return
         isFetchingRadio = true
+        val seedArtist = _uiState.value.currentSong?.artist
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val radioResult = YouTubeMusicApi.radio(seedVideoId)
+                val radioResult = YouTubeMusicApi.radio(seedVideoId, seedArtist)
                 val radioSongs = radioResult.getOrNull().orEmpty()
                 val currentQueueVideoIds = _uiState.value.queue.mapNotNull { it.videoId }.toSet()
 
-                val newSongs = radioSongs.filter { song ->
+                val filtered = radioSongs.filter { song ->
                     val vId = song.videoId
                     !vId.isNullOrBlank() && !playedVideoIds.contains(vId) && !currentQueueVideoIds.contains(vId)
                 }
+
+                val precedingArtists = _uiState.value.queue.takeLast(2).map { it.artist }
+                val newSongs = YouTubeMusicApi.applyRadioArtistVariation(filtered, seedArtist, precedingArtists)
 
                 if (newSongs.isNotEmpty()) {
                     val newMediaItems = newSongs.map { createMediaItem(it) }
                     withContext(Dispatchers.Main) {
                         withController { controller ->
                             controller.addMediaItems(newMediaItems)
-                            _uiState.update { it.copy(queue = it.queue + newSongs) }
+                            _uiState.update {
+                                it.copy(
+                                    queue = it.queue + newSongs,
+                                    isRadioQueue = true
+                                )
+                            }
                         }
                     }
                 }
@@ -523,6 +535,73 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 Log.w("MusikPlayer", "Gagal memuat auto radio untuk videoId=$seedVideoId: ${e.message}")
             } finally {
                 isFetchingRadio = false
+            }
+        }
+    }
+
+    /**
+     * Melompat ke indeks lagu tertentu di antrean.
+     */
+    fun lompatKeAntrean(index: Int) {
+        val currentQueue = _uiState.value.queue
+        if (index !in currentQueue.indices) return
+        val targetSong = currentQueue[index]
+        _uiState.update {
+            it.copy(
+                currentSong = targetSong,
+                progress = 0f,
+                currentPositionMs = 0L,
+                isBuffering = true
+            )
+        }
+        withController { controller ->
+            if (index < controller.mediaItemCount) {
+                controller.seekToDefaultPosition(index)
+                controller.play()
+            }
+        }
+        loadLyricsForSong(targetSong)
+    }
+
+    /**
+     * Menghapus lagu pada indeks tertentu dari antrean.
+     */
+    fun hapusDariAntrean(index: Int) {
+        val currentQueue = _uiState.value.queue
+        if (index !in currentQueue.indices) return
+        val updatedQueue = currentQueue.toMutableList()
+        updatedQueue.removeAt(index)
+        _uiState.update { it.copy(queue = updatedQueue) }
+        withController { controller ->
+            if (index < controller.mediaItemCount) {
+                controller.removeMediaItem(index)
+            }
+        }
+    }
+
+    /**
+     * Membersihkan antrean dan menyisakan lagu yang sedang diputar.
+     */
+    fun bersihkanAntrean() {
+        val currentSong = _uiState.value.currentSong ?: return
+        val currentQueue = _uiState.value.queue
+        val currentIndex = currentQueue.indexOfFirst {
+            (it.id == currentSong.id && it.id.isNotBlank()) ||
+            (!it.videoId.isNullOrBlank() && it.videoId == currentSong.videoId)
+        }.takeIf { it != -1 } ?: 0
+
+        _uiState.update { it.copy(queue = listOf(currentSong)) }
+
+        withController { controller ->
+            val count = controller.mediaItemCount
+            if (count > 1) {
+                val currentMediaIndex = controller.currentMediaItemIndex
+                if (currentMediaIndex + 1 < count) {
+                    controller.removeMediaItems(currentMediaIndex + 1, count)
+                }
+                if (currentMediaIndex > 0) {
+                    controller.removeMediaItems(0, currentMediaIndex)
+                }
             }
         }
     }

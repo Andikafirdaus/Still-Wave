@@ -75,6 +75,7 @@ import com.example.still_wave_music_player.data.model.Song
 import com.example.still_wave_music_player.ui.components.AlbumArt
 import com.example.still_wave_music_player.ui.components.AppIcons
 import com.example.still_wave_music_player.ui.components.FloatingGlass
+import com.example.still_wave_music_player.ui.components.QueueSheet
 import com.example.still_wave_music_player.ui.theme.Accent
 import com.example.still_wave_music_player.ui.theme.Background
 import com.example.still_wave_music_player.ui.theme.Border
@@ -105,6 +106,8 @@ fun PlayerScreen(
     isShuffle: Boolean,
     repeatMode: RepeatMode,
     isFavorite: Boolean = false,
+    queue: List<Song> = emptyList(),
+    isRadioQueue: Boolean = false,
     onClose: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onNext: () -> Unit,
@@ -114,6 +117,10 @@ fun PlayerScreen(
     onToggleShuffle: () -> Unit,
     onChangeRepeatMode: () -> Unit,
     onToggleFavorite: () -> Unit = {},
+    onJumpToQueue: (Int) -> Unit = {},
+    onRemoveFromQueue: (Int) -> Unit = {},
+    onClearQueue: () -> Unit = {},
+    onOpenAddToPlaylist: () -> Unit = {},
     onNavigateToArtist: (String) -> Unit = {},
     onNavigateToAlbum: (String) -> Unit = {},
     modifier: Modifier = Modifier
@@ -124,6 +131,7 @@ fun PlayerScreen(
     }
 
     var showLyrics by rememberSaveable { mutableStateOf(false) }
+    var showQueueSheet by rememberSaveable { mutableStateOf(false) }
 
     // Animasi skala sampul: mengecil sedikit saat jeda dan membesar saat memutar (spring)
     val coverScale by animateFloatAsState(
@@ -192,7 +200,7 @@ fun PlayerScreen(
                     icon = AppIcons.MoreVert,
                     contentDescription = "Menu opsi lagu",
                     tint = TextSecondary,
-                    onClick = { /* Menu aksi di tahap berikutnya */ }
+                    onClick = onOpenAddToPlaylist
                 )
             }
         }
@@ -350,7 +358,7 @@ fun PlayerScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // ── 6. Baris Sekunder: Favorit ────────────────────────────────────────
+        // ── 6. Baris Sekunder: Favorit & Antrean ──────────────────────────────
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -362,10 +370,31 @@ fun PlayerScreen(
                 tint = if (isFavorite) Accent else TextSecondary,
                 onClick = onToggleFavorite
             )
+
+            Spacer(modifier = Modifier.width(32.dp))
+
+            BouncyIconButton(
+                icon = AppIcons.QueueMusic,
+                contentDescription = "Antrean",
+                tint = if (showQueueSheet) Accent else TextSecondary,
+                onClick = { showQueueSheet = true }
+            )
         }
 
         // ── 7. Ruang Kosong Bawah ─────────────────────────────────────────────
         Spacer(modifier = Modifier.height(20.dp))
+    }
+
+    if (showQueueSheet) {
+        QueueSheet(
+            currentSong = song,
+            queue = queue,
+            isRadioQueue = isRadioQueue,
+            onJumpTo = onJumpToQueue,
+            onRemove = onRemoveFromQueue,
+            onClearQueue = onClearQueue,
+            onDismissRequest = { showQueueSheet = false }
+        )
     }
 }
 

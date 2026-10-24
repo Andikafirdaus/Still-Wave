@@ -117,7 +117,7 @@ object YouTubeMusicApi {
      * Mengambil daftar lagu radio serupa dari YouTube Music di Dispatchers.IO.
      * Mengembalikan Result berisi daftar Song (maksimal 30 item tanpa duplikat).
      */
-    suspend fun radio(videoId: String): Result<List<Song>> = withContext(Dispatchers.IO) {
+    suspend fun radio(videoId: String, seedArtist: String? = null): Result<List<Song>> = withContext(Dispatchers.IO) {
         val trimmedId = videoId.trim()
         if (trimmedId.isEmpty()) {
             return@withContext Result.success(emptyList())
@@ -125,7 +125,7 @@ object YouTubeMusicApi {
 
         try {
             val responseText = executePostRequest(NEXT_URL, buildRadioRequestBody(trimmedId))
-            val songs = parseRadioFromResponse(responseText, trimmedId)
+            val songs = parseRadioFromResponse(responseText, trimmedId, seedArtist)
             Result.success(songs)
         } catch (e: UnknownHostException) {
             Log.e(TAG, "Radio YouTube Music gagal: tidak ada internet (${e.message})")
@@ -506,7 +506,11 @@ object YouTubeMusicApi {
     /**
      * Mengurai string JSON respons radio mencari playlistPanelVideoRenderer.
      */
-    private fun parseRadioFromResponse(jsonStr: String, sourceVideoId: String): List<Song> {
+    private fun parseRadioFromResponse(
+        jsonStr: String,
+        sourceVideoId: String,
+        seedArtist: String? = null
+    ): List<Song> {
         val rootJson = try {
             JSONObject(jsonStr)
         } catch (e: Exception) {
@@ -634,7 +638,80 @@ object YouTubeMusicApi {
             )
         }
 
-        return results
+        return applyRadioArtistVariation(results, seedArtist)
+    }
+
+    /**
+     * Menyusun ulang daftar radio agar:
+     * 1. Lagu dari artis benih (seed) dibatasi sekitar 35% jika cukup lagu dari artis lain.
+     * 2. Tidak ada lebih dari 2 lagu berurutan dari artis yang sama.
+     */
+    fun applyRadioArtistVariation(
+        songs: List<Song>,
+        seedArtist: String? = null,
+        precedingArtists: List<String> = emptyList()
+    ): List<Song> {
+        if (songs.size <= 2) return songs
+
+        val cleanSeedArtist = seedArtist?.trim()?.takeIf {
+            it.isNotBlank() && !it.equals("Artis tidak diketahui", ignoreCase = true)
+        } ?: songs.firstOrNull()?.artist?.trim()?.takeIf {
+            it.isNotBlank() && !it.equals("Artis tidak diketahui", ignoreCase = true)
+        }
+
+        // 1. Batasi lagu artis benih sekitar 35% jika lagu lain mencukupi
+        val (seedSongs, otherSongs) = if (cleanSeedArtist != null) {
+            songs.partition { it.artist.trim().equals(cleanSeedArtist, ignoreCase = true) }
+        } else {
+            emptyList<Song>() to songs
+        }
+
+        val pool = if (seedSongs.isNotEmpty() && otherSongs.isNotEmpty()) {
+            val total = songs.size
+            val maxSeed = maxOf(1, (total * 0.35).toInt())
+            if (otherSongs.size >= total - maxSeed) {
+                seedSongs.take(maxSeed) + otherSongs
+            } else {
+                songs
+            }
+        } else {
+            songs
+        }.toMutableList()
+
+        // 2. Susun ulang agar tidak ada lebih dari 2 lagu berurutan dari artis yang sama
+        val result = mutableListOf<Song>()
+        val recentArtists = precedingArtists.takeLast(2).map { it.trim().lowercase(Locale.ROOT) }.toMutableList()
+
+        while (pool.isNotEmpty()) {
+            val last1 = if (result.isNotEmpty()) {
+                result.last().artist.trim().lowercase(Locale.ROOT)
+            } else {
+                recentArtists.getOrNull(recentArtists.size - 1)
+            }
+            val last2 = if (result.size >= 2) {
+                result[result.size - 2].artist.trim().lowercase(Locale.ROOT)
+            } else if (result.size == 1) {
+                recentArtists.getOrNull(recentArtists.size - 1)
+            } else {
+                recentArtists.getOrNull(recentArtists.size - 2)
+            }
+
+            val consecutiveSame = last1 != null && last1 == last2
+
+            val candidateIndex = if (consecutiveSame) {
+                pool.indexOfFirst { it.artist.trim().lowercase(Locale.ROOT) != last1 }
+            } else {
+                0
+            }
+
+            if (candidateIndex != -1) {
+                result.add(pool.removeAt(candidateIndex))
+            } else {
+                result.add(pool.removeAt(0))
+            }
+        }
+
+        return result
     }
 
     /**

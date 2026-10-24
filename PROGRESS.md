@@ -8,7 +8,7 @@
 
 ## Putaran 2: Perbaikan dan Pelengkapan
 - [x] Fase 1: Pencarian "Semua" dengan Hasil Teratas
-- [ ] Fase 2: Antrean dan Variasi Radio
+- [x] Fase 2: Antrean dan Variasi Radio
 - [ ] Fase 3: Daftar Putar Lengkap
 - [ ] Fase 4: Beranda dan Rekomendasi
 - [ ] Fase 5: Suasana di Jelajah
@@ -16,6 +16,7 @@
 
 ## Keputusan Putaran 2
 - Fase 1: Menambahkan model `TopResultType`, `TopResult`, dan `SearchAllResult` di `ArtistAndAlbum.kt`. Di `YouTubeMusicApi.kt` ditambahkan fungsi `searchAll(kueri)` tanpa params, parser generik `parseSearchAllFromResponse` yang menangkap `musicCardShelfRenderer` untuk Hasil Teratas (klasifikasi artis, album, atau lagu) beserta fallback ke item pertama, pengumpulan shelf lagu, artis, dan album, serta cache memori sesi `searchAllCache`. Di `OnlineSearchViewModel.kt` ditambahkan kategori `OnlineSearchCategory.SEMUA` sebagai bawaan dan state `OnlineSearchUiState.BerisiSemua`. Di `SearchScreen.kt` tab kategori online menampilkan "Semua | Lagu | Artis | Album", kartu Hasil Teratas di posisi atas, bagian Lagu dengan tombol "Lihat semua", deretan gulir horizontal Artis (foto bulat), dan deretan gulir horizontal Album (sampul persegi).
+- Fase 2: Menambahkan ikon `QueueMusic` di `AppIcons.kt` tanpa menghapus ikon yang ada. Di `YouTubeMusicApi.kt` ditambahkan fungsi `applyRadioArtistVariation(songs, seedArtist, precedingArtists)` untuk membatasi lagu artis benih ~35% dari total (jika lagu lain cukup) dan memastikan tidak ada lebih dari 2 lagu berurutan dari artis yang sama, diterapkan pada pemanggilan radio awal maupun penambahan radio berikutnya di `fetchAndAppendRadio`. Di `PlayerViewModel.kt` ditambahkan `isRadioQueue` pada `PlayerUiState`, fungsi `lompatKeAntrean(index)`, `hapusDariAntrean(index)`, dan `bersihkanAntrean()`. Dibuat komponen `QueueSheet.kt` berisi bagian "Sedang diputar", bagian "Berikutnya" dengan sampul, judul, artis, durasi, tombol hapus per baris, tombol "Bersihkan antrean", dan badge "Radio" jika berasal dari radio. Di `PlayerScreen.kt` ditambahkan tombol antrean di baris sekunder berdampingan dengan favorit yang membuka `QueueSheet`. Di `AppRoot.kt` disambungkan state antrean dan aksi controller ke `PlayerScreen`.
 
 ## Belum Selesai Putaran 2
 - Belum ada.
