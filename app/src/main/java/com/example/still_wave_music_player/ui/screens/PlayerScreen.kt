@@ -48,6 +48,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -73,9 +74,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.still_wave_music_player.data.model.LyricsUiState
 import com.example.still_wave_music_player.data.model.Song
+import com.example.still_wave_music_player.together.ListenTogetherManager
+import com.example.still_wave_music_player.together.TogetherStatus
 import com.example.still_wave_music_player.ui.components.AlbumArt
 import com.example.still_wave_music_player.ui.components.AppIcons
 import com.example.still_wave_music_player.ui.components.FloatingGlass
+import com.example.still_wave_music_player.ui.components.ListenTogetherSheet
 import com.example.still_wave_music_player.ui.components.QueueSheet
 import com.example.still_wave_music_player.ui.theme.Accent
 import com.example.still_wave_music_player.ui.theme.Background
@@ -133,6 +137,9 @@ fun PlayerScreen(
 
     var showLyrics by rememberSaveable { mutableStateOf(false) }
     var showQueueSheet by rememberSaveable { mutableStateOf(false) }
+    var showTogetherSheet by rememberSaveable { mutableStateOf(false) }
+    val togetherState by ListenTogetherManager.uiState.collectAsState()
+    val isTogetherConnected = togetherState.status == TogetherStatus.Terhubung
 
     // Animasi skala sampul: mengecil sedikit saat jeda dan membesar saat memutar (spring)
     val coverScale by animateFloatAsState(
@@ -359,7 +366,7 @@ fun PlayerScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // ── 6. Baris Sekunder: Favorit & Antrean ──────────────────────────────
+        // ── 6. Baris Sekunder: Favorit, Antrean, dan Bareng ──────────────────
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -372,7 +379,7 @@ fun PlayerScreen(
                 onClick = onToggleFavorite
             )
 
-            Spacer(modifier = Modifier.width(32.dp))
+            Spacer(modifier = Modifier.width(28.dp))
 
             BouncyIconButton(
                 icon = AppIcons.QueueMusic,
@@ -380,6 +387,29 @@ fun PlayerScreen(
                 tint = if (showQueueSheet) Accent else TextSecondary,
                 onClick = { showQueueSheet = true }
             )
+
+            Spacer(modifier = Modifier.width(28.dp))
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                BouncyIconButton(
+                    icon = AppIcons.Group,
+                    contentDescription = "Dengar bareng",
+                    tint = if (isTogetherConnected) Accent else TextSecondary,
+                    onClick = { showTogetherSheet = true }
+                )
+                if (isTogetherConnected) {
+                    Text(
+                        text = "Mendengar bareng",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Accent
+                        )
+                    )
+                }
+            }
         }
 
         // ── 7. Ruang Kosong Bawah ─────────────────────────────────────────────
@@ -395,6 +425,12 @@ fun PlayerScreen(
             onRemove = onRemoveFromQueue,
             onClearQueue = onClearQueue,
             onDismissRequest = { showQueueSheet = false }
+        )
+    }
+
+    if (showTogetherSheet) {
+        ListenTogetherSheet(
+            onDismiss = { showTogetherSheet = false }
         )
     }
 }

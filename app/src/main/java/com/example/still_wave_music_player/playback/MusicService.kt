@@ -22,6 +22,7 @@ import androidx.media3.session.MediaSessionService
 import com.example.still_wave_music_player.MainActivity
 import com.example.still_wave_music_player.data.remote.YouTubeStreamResolver
 import com.example.still_wave_music_player.data.repository.SettingsRepository
+import com.example.still_wave_music_player.together.ListenTogetherManager
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.CoroutineScope
@@ -119,6 +120,8 @@ class MusicService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_LOCAL)
             .build()
+
+        ListenTogetherManager.attachPlayer(this, player)
 
         // 4. Pasang listener penanganan error dan retry kedaluwarsa pada ExoPlayer
         player.addListener(object : Player.Listener {
@@ -299,6 +302,7 @@ class MusicService : MediaSessionService() {
     override fun onDestroy() {
         prefetchJob?.cancel()
         crossfadeJob?.cancel()
+        ListenTogetherManager.detachPlayer()
         mediaSession?.run {
             player.release()
             release()
@@ -350,7 +354,7 @@ class MusicService : MediaSessionService() {
     private fun startCrossfadeMonitor(player: ExoPlayer) {
         crossfadeJob?.cancel()
         val crossfadeSec = settingsRepository.crossfadeSeconds.value
-        if (crossfadeSec <= 0) return
+        if (crossfadeSec <= 0 || ListenTogetherManager.isConnected()) return
 
         crossfadeJob = serviceScope.launch {
             while (isActive) {

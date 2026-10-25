@@ -24,6 +24,7 @@ import com.example.still_wave_music_player.data.repository.HistoryRepository
 import com.example.still_wave_music_player.data.repository.LyricsRepository
 import com.example.still_wave_music_player.data.repository.SettingsRepository
 import com.example.still_wave_music_player.playback.MusicService
+import com.example.still_wave_music_player.together.ListenTogetherManager
 import com.example.still_wave_music_player.together.createOnlineMediaItem
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.Dispatchers
@@ -186,7 +187,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
 
             // Cek kebutuhan penambahan radio otomatis saat sisa antrean <= 2
-            if (queueSource == QueueSource.SINGLE_ONLINE && settingsRepository.isAutoRadioEnabled.value && _uiState.value.repeatMode != RepeatMode.ONE) {
+            if (queueSource == QueueSource.SINGLE_ONLINE && settingsRepository.isAutoRadioEnabled.value && _uiState.value.repeatMode != RepeatMode.ONE && ListenTogetherManager.canExtendRadio()) {
                 mediaController?.let { controller ->
                     val remaining = controller.mediaItemCount - controller.currentMediaItemIndex - 1
                     if (remaining <= 2 && !isFetchingRadio) {
@@ -464,7 +465,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
 
-        if (isSingleOnline && settingsRepository.isAutoRadioEnabled.value) {
+        if (isSingleOnline && settingsRepository.isAutoRadioEnabled.value && ListenTogetherManager.canExtendRadio()) {
             song.videoId?.let { fetchAndAppendRadio(it, currentGen) }
         }
     }

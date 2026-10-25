@@ -28,7 +28,7 @@
 ## Putaran 3: Perbaikan Bug dan Listening Together
 - [x] Fase 1: Akar Masalah Bug (3) dan Perbaikan
 - [x] Fase 2: Persiapan Listening Together (Tanpa Jaringan)
-- [ ] Fase 3: Listening Together (Firebase Realtime Database Lewat REST)
+- [x] Fase 3: Listening Together (Firebase Realtime Database Lewat REST)
 
 ## Keputusan Putaran 3
 - Akar masalah Bug (3) ditemukan dan diperbaiki:
@@ -43,6 +43,13 @@
   2. Membuat paket `com.example.still_wave_music_player.together` dengan `TogetherPreferences.kt` untuk mengelola SharedPreferences "pengaturan" (`serverUrl`, `nickname` bawaan "Aku", dan `deviceId` UUID acak permanen) beserta validasi ketat `serverUrl` (https, tanpa trailing slash, host berakhiran `firebasedatabase.app` atau `firebaseio.com`).
   3. Membuat `TogetherModels.kt` berisi model data `RoomState` dan `RoomSong` beserta fungsi konversi bolak-balik dengan `Song`.
   4. Mengekstrak fungsi pembuat `MediaItem` online ke fungsi bersama `createOnlineMediaItem` yang dipakai bersama oleh `PlayerViewModel.kt` dan persiapan manager Listening Together.
+- Fase 3:
+  1. Membuat `ListenTogetherManager.kt` di paket `together` dengan CoroutineScope (`SupervisorJob`, `Dispatchers.IO`), integrasi ExoPlayer di `MusicService` (`attachPlayer`/`detachPlayer`) dengan eksekusi kontrol di Looper utama, StateFlow `uiState`, dan REST call via OkHttp dengan `?print=silent`.
+  2. Mengimplementasikan siklus ruang lengkap: pembuatan kode 6 karakter non-ambigu, pengecekan ketiadaan ruang sebelumnya, registrasi host dan member, inisialisasi queue dan state secara atomik (PATCH), masuk ruang via kode, detak `lastSeen` 15 detik, deteksi pasangan online (< 45 detik), serta estimasi offset jam server lewat median dari 3 pengukuran bolak-balik (`serverNow = waktu lokal + offset`).
+  3. Aliran pembaruan jarak jauh menggunakan SSE `text/event-stream` dengan reconnect bertingkat (1, 2, 4, 8, 15 detik) dan debounce 150 ms untuk full fetch. Sinkronisasi perubahan lokal via `Player.Listener` (debounce 300 ms) dengan penanda `applyingRemote` untuk mencegah echo loop, serta koreksi geser berkala tiap 5 detik jika selisih > 1500 ms.
+  4. Hanya lagu online (`videoId != null`) yang dibagikan dan diproses; lagu lokal memicu catatan "Lagu lokal tidak dibagikan". Selama terhubung, crossfade otomatis dilewati (`MusicService.kt`), dan radio otomatis hanya diperpanjang oleh host melalui fungsi `canExtendRadio()`.
+  5. Membuat komponen antarmuka `ListenTogetherSheet.kt`: pengelolaan alamat server & nama panggilan dengan validasi, tombol "Buat ruang", kolom input 6 karakter dengan tombol "Masuk", tampilan kode ruang besar dengan tombol "Salin" dan "Bagikan" (`ACTION_SEND`), indikator pasangan online, penanganan galat berbahasa Indonesia defensif, serta tombol "Keluar dari ruang".
+  6. Mengintegrasikan UI di `PlayerScreen.kt` (tombol "Bareng" berikon `AppIcons.Group`, label "Mendengar bareng", dan bottom sheet) serta badge solid "Bareng" di `MiniPlayer.kt`.
 
 ## Belum Selesai Putaran 3
 - Belum ada.

@@ -26,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,12 +35,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.still_wave_music_player.data.model.Song
+import com.example.still_wave_music_player.together.ListenTogetherManager
+import com.example.still_wave_music_player.together.TogetherStatus
 import com.example.still_wave_music_player.ui.components.AlbumArt
 import com.example.still_wave_music_player.ui.theme.Accent
 import com.example.still_wave_music_player.ui.theme.Motion
@@ -122,6 +126,9 @@ fun MiniPlayer(
 
                     Spacer(modifier = Modifier.width(12.dp))
 
+                    val togetherState by ListenTogetherManager.uiState.collectAsState()
+                    val isTogetherConnected = togetherState.status == TogetherStatus.Terhubung
+
                     // Judul dan Artis satu baris terpotong dengan elipsis
                     Text(
                         text = "${song.title} · ${song.artist}",
@@ -134,6 +141,25 @@ fun MiniPlayer(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
+
+                    if (isTogetherConnected) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Accent)
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "Bareng",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.width(8.dp))
 
