@@ -868,5 +868,48 @@ object AppIcons {
             }
         }.build()
     }
+
+    /**
+     * Ikon grup pengguna (Group) untuk fitur Listening Together.
+     */
+    val Group: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "Group",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(16f, 11f)
+                curveTo(17.66f, 11f, 18.99f, 9.66f, 18.99f, 8f)
+                curveTo(18.99f, 6.34f, 17.66f, 5f, 16f, 5f)
+                curveTo(14.34f, 5f, 13f, 6.34f, 13f, 8f)
+                curveTo(13f, 9.66f, 14.34f, 11f, 16f, 11f)
+                close()
+                moveTo(8f, 11f)
+                curveTo(9.66f, 11f, 10.99f, 9.66f, 10.99f, 8f)
+                curveTo(10.99f, 6.34f, 9.66f, 5f, 8f, 5f)
+                curveTo(6.34f, 5f, 5f, 6.34f, 5f, 8f)
+                curveTo(5f, 9.66f, 6.34f, 11f, 8f, 11f)
+                close()
+                moveTo(8f, 13f)
+                curveTo(5.67f, 13f, 1f, 14.17f, 1f, 16.5f)
+                verticalLineTo(19f)
+                horizontalLineTo(15f)
+                verticalLineTo(16.5f)
+                curveTo(15f, 14.17f, 10.33f, 13f, 8f, 13f)
+                close()
+                moveTo(16f, 13f)
+                curveTo(15.71f, 13f, 15.38f, 13.02f, 15.03f, 13.05f)
+                curveTo(16.19f, 13.89f, 17f, 15.02f, 17f, 16.5f)
+                verticalLineTo(19f)
+                horizontalLineTo(23f)
+                verticalLineTo(16.5f)
+                curveTo(23f, 14.17f, 18.33f, 13f, 16f, 13f)
+                close()
+            }
+        }.build()
+    }
 }
 

@@ -24,6 +24,7 @@ import com.example.still_wave_music_player.data.repository.HistoryRepository
 import com.example.still_wave_music_player.data.repository.LyricsRepository
 import com.example.still_wave_music_player.data.repository.SettingsRepository
 import com.example.still_wave_music_player.playback.MusicService
+import com.example.still_wave_music_player.together.createOnlineMediaItem
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -470,28 +471,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun createMediaItem(s: Song): MediaItem {
         return if (!s.videoId.isNullOrEmpty() && s.contentUri.isNullOrEmpty()) {
-            val metaBuilder = MediaMetadata.Builder()
-                .setTitle(s.title)
-                .setArtist(s.artist)
-
-            if (!s.album.isNullOrBlank()) {
-                metaBuilder.setAlbumTitle(s.album)
-            }
-            if (!s.thumbnailUrl.isNullOrBlank()) {
-                metaBuilder.setArtworkUri(Uri.parse(s.thumbnailUrl))
-            }
-
-            val onlineUri = Uri.parse("ytm://${s.videoId}")
-            MediaItem.Builder()
-                .setMediaId(s.videoId)
-                .setUri(onlineUri)
-                .setRequestMetadata(
-                    MediaItem.RequestMetadata.Builder()
-                        .setMediaUri(onlineUri)
-                        .build()
-                )
-                .setMediaMetadata(metaBuilder.build())
-                .build()
+            createOnlineMediaItem(s)
         } else {
             val localUri = Uri.parse(s.contentUri ?: "")
             MediaItem.Builder()

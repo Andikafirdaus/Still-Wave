@@ -27,7 +27,7 @@
 
 ## Putaran 3: Perbaikan Bug dan Listening Together
 - [x] Fase 1: Akar Masalah Bug (3) dan Perbaikan
-- [ ] Fase 2: Persiapan Listening Together (Tanpa Jaringan)
+- [x] Fase 2: Persiapan Listening Together (Tanpa Jaringan)
 - [ ] Fase 3: Listening Together (Firebase Realtime Database Lewat REST)
 
 ## Keputusan Putaran 3
@@ -38,6 +38,11 @@
   4. Di `MusicService.kt` ditambahkan log `"transisi ke videoId=<id> alasan=<r>"`, dan di `PlayerViewModel.kt` ditambahkan log presisi `"putar() videoId=<id> idx=<n> gen=<n> sumber=<sumber>"`.
   5. Akar masalah kartu Hasil teratas (1) & (2): Pada `YouTubeMusicApi.kt`, `card.optJSONObject("header")` bernilai null pada respons YouTube Music web (judul berada di `card.optJSONObject("title")`), sehingga `parseTopResultFromCard` gagal dan jatuh ke fallback mengambil lagu dari `contents` kartu (yang tidak memuat nama artis dan durasi berformat titik "4.05"). Diperbaiki dengan mengekstrak judul dari `card.title ?: header.title`, menentukan tipe dari subtitle run pertama dan endpoint judul, memisahkan segmen run dengan " • ", memformat durasi m:ss dengan titik dua, menggabungkan nama artis dengan koma, mencocokkan kueri yang dinormalkan dengan nama artis pertama untuk mempromosikan artis menjadi Hasil teratas, serta menambahkan log `"hasil teratas tipe=<tipe>"`.
   6. Di `SearchScreen.kt` dan `ExploreScreen.kt`, ditambahkan key dinamis pada `items` dan `rememberUpdatedState` untuk lambda pemutaran lagu guna mencegah closure basi pada Compose.
+- Fase 2:
+  1. Menambahkan ImageVector `Group` di `AppIcons.kt` tanpa menghapus ikon lain.
+  2. Membuat paket `com.example.still_wave_music_player.together` dengan `TogetherPreferences.kt` untuk mengelola SharedPreferences "pengaturan" (`serverUrl`, `nickname` bawaan "Aku", dan `deviceId` UUID acak permanen) beserta validasi ketat `serverUrl` (https, tanpa trailing slash, host berakhiran `firebasedatabase.app` atau `firebaseio.com`).
+  3. Membuat `TogetherModels.kt` berisi model data `RoomState` dan `RoomSong` beserta fungsi konversi bolak-balik dengan `Song`.
+  4. Mengekstrak fungsi pembuat `MediaItem` online ke fungsi bersama `createOnlineMediaItem` yang dipakai bersama oleh `PlayerViewModel.kt` dan persiapan manager Listening Together.
 
 ## Belum Selesai Putaran 3
 - Belum ada.
