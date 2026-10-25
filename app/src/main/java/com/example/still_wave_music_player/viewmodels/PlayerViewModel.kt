@@ -116,6 +116,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var queueSource: QueueSource = QueueSource.COLLECTION
     private val playedVideoIds: MutableSet<String> = Collections.synchronizedSet(mutableSetOf())
     private var isFetchingRadio = false
+    private var queueGeneration: Long = 0L
+    private var radioJob: Job? = null
 
     private var mediaController: MediaController? = null
     private var controllerFuture: ListenableFuture<MediaController>? = null
@@ -189,7 +191,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     if (remaining <= 2 && !isFetchingRadio) {
                         val lastVideoId = _uiState.value.queue.lastOrNull { !it.videoId.isNullOrBlank() }?.videoId ?: matchedSong?.videoId
                         if (lastVideoId != null) {
-                            fetchAndAppendRadio(lastVideoId)
+                            fetchAndAppendRadio(lastVideoId, queueGeneration)
                         }
                     }
                 }
@@ -393,16 +395,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * Mendukung lagu lokal (dengan contentUri) dan lagu online YouTube Music (dengan videoId).
      */
     fun putar(song: Song, daftar: List<Song> = emptyList(), source: QueueSource? = null) {
-        val sourceList = if (daftar.isNotEmpty()) daftar else _uiState.value.queue.ifEmpty { listOf(song) }
+        val currentGen = ++queueGeneration
+        radioJob?.cancel()
+        radioJob = null
+        isFetchingRadio = false
+
+        val sourceList = if (daftar.isNotEmpty()) daftar else listOf(song)
         val playableSongs = sourceList.filter { !it.contentUri.isNullOrEmpty() || !it.videoId.isNullOrEmpty() }
         if (playableSongs.isEmpty()) {
             Log.e("MusikPlayer", "Tidak ada lagu yang valid untuk diputar.")
             return
-        }
-
-        val onlineVideoId = song.videoId?.takeIf { it.isNotBlank() }
-        if (onlineVideoId != null) {
-            Log.d("MusikPlayer", "putar() dipanggil lagu online videoId=$onlineVideoId antrean=${playableSongs.size}")
         }
 
         val isSingleOnline = (daftar.isEmpty() || daftar.size == 1) && !song.videoId.isNullOrBlank()
@@ -415,8 +417,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         historyRecordedForCurrent = false
 
         val initialIndex = playableSongs.indexOfFirst {
-            it.id == song.id || (!it.videoId.isNullOrEmpty() && it.videoId == song.videoId)
+            (!song.videoId.isNullOrBlank() && it.videoId == song.videoId) || it.id == song.id
         }.let { if (it == -1) 0 else it }
+
+        Log.d("MusikPlayer", "putar() videoId=${song.videoId ?: song.id} idx=$initialIndex gen=$currentGen sumber=${queueSource.name}")
 
         val mediaItems = playableSongs.map { createMediaItem(it) }
 
@@ -436,10 +440,19 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         withController { controller ->
             val currentMediaId = controller.currentMediaItem?.mediaId
-            val sameSong = currentMediaId != null && (currentMediaId == song.id || currentMediaId == song.videoId)
+            val currentSong = _uiState.value.currentSong
+            val isSameSong = when {
+                !song.videoId.isNullOrBlank() -> {
+                    currentMediaId == song.videoId && currentSong?.videoId == song.videoId
+                }
+                else -> {
+                    currentMediaId == song.id && currentSong?.id == song.id
+                }
+            }
             val sameCount = controller.mediaItemCount == mediaItems.size
+            val sameIndex = controller.currentMediaItemIndex == initialIndex
 
-            if (sameSong && sameCount) {
+            if (isSameSong && sameCount && sameIndex) {
                 if (!controller.isPlaying) {
                     controller.play()
                 }
@@ -451,7 +464,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         if (isSingleOnline && settingsRepository.isAutoRadioEnabled.value) {
-            song.videoId?.let { fetchAndAppendRadio(it) }
+            song.videoId?.let { fetchAndAppendRadio(it, currentGen) }
         }
     }
 
@@ -500,13 +513,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private fun fetchAndAppendRadio(seedVideoId: String) {
+    private fun fetchAndAppendRadio(seedVideoId: String, generation: Long) {
         if (isFetchingRadio) return
         isFetchingRadio = true
         val seedArtist = _uiState.value.currentSong?.artist
-        viewModelScope.launch(Dispatchers.IO) {
+        radioJob = viewModelScope.launch(Dispatchers.IO) {
             try {
+                if (generation != queueGeneration) return@launch
                 val radioResult = YouTubeMusicApi.radio(seedVideoId, seedArtist)
+                if (generation != queueGeneration) return@launch
                 val radioSongs = radioResult.getOrNull().orEmpty()
                 val currentQueueVideoIds = _uiState.value.queue.mapNotNull { it.videoId }.toSet()
 
@@ -519,9 +534,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 val newSongs = YouTubeMusicApi.applyRadioArtistVariation(filtered, seedArtist, precedingArtists)
 
                 if (newSongs.isNotEmpty()) {
+                    if (generation != queueGeneration) return@launch
                     val newMediaItems = newSongs.map { createMediaItem(it) }
                     withContext(Dispatchers.Main) {
+                        if (generation != queueGeneration) return@withContext
                         withController { controller ->
+                            if (generation != queueGeneration) return@withController
                             controller.addMediaItems(newMediaItems)
                             _uiState.update {
                                 it.copy(

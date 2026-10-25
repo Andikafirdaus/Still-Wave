@@ -92,7 +92,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         seedSongs.add(s)
                     } else {
                         try {
-                            val searchResult = YouTubeMusicApi.search("${s.title} ${s.artist}").getOrNull()
+                            val searchResult = YouTubeMusicApi.cari("${s.title} ${s.artist}").getOrNull()
                             val foundSong = searchResult?.firstOrNull()
                             if (foundSong != null && !foundSong.videoId.isNullOrBlank()) {
                                 seedSongs.add(foundSong)
@@ -148,7 +148,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             _isTrendingLoading.value = true
             try {
-                val result = YouTubeMusicApi.search("lagu populer indonesia").getOrNull().orEmpty()
+                val result = YouTubeMusicApi.cari("lagu populer indonesia").getOrNull().orEmpty()
                 if (result.isNotEmpty()) {
                     cachedTrending = now to result
                     _trendingSongs.value = result

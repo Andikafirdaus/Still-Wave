@@ -39,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -51,8 +52,8 @@ import androidx.compose.ui.unit.sp
 import com.example.still_wave_music_player.data.model.Song
 import com.example.still_wave_music_player.data.remote.YouTubeMusicApi
 import com.example.still_wave_music_player.ui.components.AppIcons
+import com.example.still_wave_music_player.ui.theme.Accent
 import com.example.still_wave_music_player.ui.theme.Background
-import com.example.still_wave_music_player.ui.theme.Primary
 import com.example.still_wave_music_player.ui.theme.TextPrimary
 import com.example.still_wave_music_player.ui.theme.TextSecondary
 import kotlinx.coroutines.Dispatchers
@@ -98,6 +99,9 @@ fun ExploreScreen(
 ) {
     val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val scope = rememberCoroutineScope()
+    val currentPlaySong by rememberUpdatedState(onPlaySong)
+    val currentPlayAll by rememberUpdatedState(onPlayAll)
+    val currentOpenAddToPlaylist by rememberUpdatedState(onOpenAddToPlaylist)
 
     var selectedMood by rememberSaveable { mutableStateOf<String?>(null) }
     var moodSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
@@ -199,7 +203,7 @@ fun ExploreScreen(
                             verticalArrangement = Arrangement.Center
                         ) {
                             CircularProgressIndicator(
-                                color = Primary,
+                                color = Accent,
                                 modifier = Modifier.size(36.dp),
                                 strokeWidth = 3.dp
                             )
@@ -234,8 +238,8 @@ fun ExploreScreen(
                         Button(
                             onClick = { fetchSongsForMood(activeMood) },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Primary,
-                                contentColor = Color.Black
+                                containerColor = Accent,
+                                contentColor = Color.White
                             ),
                             shape = RoundedCornerShape(24.dp)
                         ) {
@@ -258,10 +262,10 @@ fun ExploreScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Button(
-                            onClick = { onPlayAll(moodSongs) },
+                            onClick = { currentPlayAll(moodSongs) },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Primary,
-                                contentColor = Color.Black
+                                containerColor = Accent,
+                                contentColor = Color.White
                             ),
                             shape = RoundedCornerShape(24.dp),
                             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
@@ -270,7 +274,7 @@ fun ExploreScreen(
                                 imageVector = AppIcons.Play,
                                 contentDescription = "Putar semua",
                                 modifier = Modifier.size(18.dp),
-                                tint = Color.Black
+                                tint = Color.White
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
@@ -283,15 +287,15 @@ fun ExploreScreen(
                 }
 
                 // Daftar Lagu
-                items(moodSongs) { song ->
+                items(moodSongs, key = { it.videoId ?: it.id }) { song ->
                     TrackRowItem(
                         song = song,
                         onClick = {
                             // Perilaku satu-lagu-online: memutar lagu dan memicu radio kelanjutan
-                            onPlaySong(song, emptyList())
+                            currentPlaySong(song, emptyList())
                         },
                         onMoreClick = {
-                            onOpenAddToPlaylist(song)
+                            currentOpenAddToPlaylist(song)
                         }
                     )
                     Spacer(modifier = Modifier.height(4.dp))

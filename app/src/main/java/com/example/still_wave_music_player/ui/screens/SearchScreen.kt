@@ -39,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -379,7 +380,7 @@ fun SearchScreen(
 
                     // 1. Kartu Hasil Teratas
                     hasil.topResult?.let { top ->
-                        item(key = "semua_top_result") {
+                        item(key = "semua_top_result_${top.type}_${top.id}") {
                             TopResultCard(
                                 topResult = top,
                                 onPlaySong = onPlaySong,
@@ -826,6 +827,11 @@ private fun TopResultCard(
     onNavigateToAlbum: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val currentPlaySong by rememberUpdatedState(onPlaySong)
+    val currentNavigateToArtist by rememberUpdatedState(onNavigateToArtist)
+    val currentNavigateToAlbum by rememberUpdatedState(onNavigateToAlbum)
+    val currentTopResult by rememberUpdatedState(topResult)
+
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
             text = "Hasil teratas",
@@ -844,15 +850,15 @@ private fun TopResultCard(
                 .background(SurfaceHigh)
                 .border(width = 1.dp, color = Border, shape = RoundedCornerShape(16.dp))
                 .clickable {
-                    when (topResult.type) {
+                    when (currentTopResult.type) {
                         TopResultType.LAGU -> {
-                            topResult.song?.let { onPlaySong(it, emptyList()) }
+                            currentTopResult.song?.let { currentPlaySong(it, emptyList()) }
                         }
                         TopResultType.ARTIS -> {
-                            onNavigateToArtist(topResult.id)
+                            currentNavigateToArtist(currentTopResult.id)
                         }
                         TopResultType.ALBUM -> {
-                            onNavigateToAlbum(topResult.id)
+                            currentNavigateToAlbum(currentTopResult.id)
                         }
                     }
                 }

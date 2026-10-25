@@ -25,6 +25,23 @@
 ## Belum Selesai Putaran 2
 - Belum ada.
 
+## Putaran 3: Perbaikan Bug dan Listening Together
+- [x] Fase 1: Akar Masalah Bug (3) dan Perbaikan
+- [ ] Fase 2: Persiapan Listening Together (Tanpa Jaringan)
+- [ ] Fase 3: Listening Together (Firebase Realtime Database Lewat REST)
+
+## Keputusan Putaran 3
+- Akar masalah Bug (3) ditemukan dan diperbaiki:
+  1. Di `PlayerViewModel.kt` fungsi `putar(song, daftar)`: baris lama memakai `val sourceList = if (daftar.isNotEmpty()) daftar else _uiState.value.queue.ifEmpty { listOf(song) }`. Ketika mengetuk lagu baru dari kartu Hasil teratas atau dari daftar suasana di `ExploreScreen`, `daftar` dikirim berupa `emptyList()`. Akibatnya, `sourceList` mengambil `_uiState.value.queue` lama dari pemutaran sebelumnya. Karena lagu baru belum ada di antrean lama, `indexOfFirst` mengembalikan -1 yang di-fallback menjadi 0 (lagu pertama dari antrean lama), sehingga lagu lama yang berbunyi kembali. Diperbaiki dengan memastikan jika `daftar.isEmpty()`, `sourceList` adalah `listOf(song)`.
+  2. Pengecekan lagu yang sama di `putar()` diperketat dengan memeriksa `videoId` dan indeks antrean secara presisi: jika lagunya berbeda, MediaController diwajibkan memuat antrean baru (`setMediaItems`), `prepare()`, dan `play()`.
+  3. Ditambahkan penghitung generasi antrean `queueGeneration` dan pembatalan `radioJob` lama saat `putar()` baru dimulai, serta setiap pemanggilan `fetchAndAppendRadio` wajib mencocokkan generasinya sebelum menambahkan item ke antrean.
+  4. Di `MusicService.kt` ditambahkan log `"transisi ke videoId=<id> alasan=<r>"`, dan di `PlayerViewModel.kt` ditambahkan log presisi `"putar() videoId=<id> idx=<n> gen=<n> sumber=<sumber>"`.
+  5. Akar masalah kartu Hasil teratas (1) & (2): Pada `YouTubeMusicApi.kt`, `card.optJSONObject("header")` bernilai null pada respons YouTube Music web (judul berada di `card.optJSONObject("title")`), sehingga `parseTopResultFromCard` gagal dan jatuh ke fallback mengambil lagu dari `contents` kartu (yang tidak memuat nama artis dan durasi berformat titik "4.05"). Diperbaiki dengan mengekstrak judul dari `card.title ?: header.title`, menentukan tipe dari subtitle run pertama dan endpoint judul, memisahkan segmen run dengan " • ", memformat durasi m:ss dengan titik dua, menggabungkan nama artis dengan koma, mencocokkan kueri yang dinormalkan dengan nama artis pertama untuk mempromosikan artis menjadi Hasil teratas, serta menambahkan log `"hasil teratas tipe=<tipe>"`.
+  6. Di `SearchScreen.kt` dan `ExploreScreen.kt`, ditambahkan key dinamis pada `items` dan `rememberUpdatedState` untuk lambda pemutaran lagu guna mencegah closure basi pada Compose.
+
+## Belum Selesai Putaran 3
+- Belum ada.
+
 ## Keputusan (Putaran 1)
 - Struktur project sudah lengkap dengan Media3, ExoPlayer, NewPipeExtractor, dan Room terkonfigurasi di `app/build.gradle.kts`.
 - Seluruh pengerjaan akan mengikuti aturan ketat: warna solid tanpa gradien, teks bahasa Indonesia tanpa emoji, log "MusikPlayer" tanpa URL/token/body mentah, defensive parsing.

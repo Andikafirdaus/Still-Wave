@@ -123,6 +123,7 @@ class MusicService : MediaSessionService() {
         // 4. Pasang listener penanganan error dan retry kedaluwarsa pada ExoPlayer
         player.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                Log.d("MusikPlayer", "transisi ke videoId=${mediaItem?.mediaId} alasan=$reason")
                 val mediaId = mediaItem?.mediaId
                 if (mediaId != null && mediaId != lastRetriedVideoId) {
                     lastRetriedVideoId = null
