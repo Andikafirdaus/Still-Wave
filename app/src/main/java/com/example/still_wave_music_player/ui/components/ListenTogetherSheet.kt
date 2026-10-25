@@ -1,6 +1,8 @@
 package com.example.still_wave_music_player.ui.components
 
 import android.content.Intent
+import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -28,6 +31,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -85,10 +89,8 @@ fun ListenTogetherSheet(
     val uiState by ListenTogetherManager.uiState.collectAsStateWithLifecycle()
     val prefs = remember(context) { TogetherPreferences(context) }
 
-    var serverUrlInput by remember { mutableStateOf(prefs.serverUrl) }
     var nicknameInput by remember { mutableStateOf(prefs.nickname) }
     var joinCodeInput by remember { mutableStateOf("") }
-    var settingsError by remember { mutableStateOf<String?>(null) }
     var settingsSuccess by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
@@ -347,9 +349,7 @@ fun ListenTogetherSheet(
                         colors = ButtonDefaults.outlinedButtonColors(
                             contentColor = Color(0xFFFFB4AB)
                         ),
-                        border = ButtonDefaults.outlinedButtonBorder.copy(
-                            brush = SolidColor(Color(0xFF6B2B31))
-                        ),
+                        border = BorderStroke(1.dp, Color(0xFF6B2B31)),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(
@@ -360,12 +360,8 @@ fun ListenTogetherSheet(
                 }
 
                 TogetherStatus.TidakTerhubung -> {
-                    val isServerConfigured = prefs.serverUrl.isNotBlank()
-
-                    // Bagian Buat Ruang & Masuk Ruang
-                    if (isServerConfigured) {
-                        // Tombol Buat Ruang
-                        Button(
+                    // Tombol Buat Ruang
+                    Button(
                             onClick = {
                                 keyboardController?.hide()
                                 ListenTogetherManager.createRoom(context)
@@ -471,31 +467,11 @@ fun ListenTogetherSheet(
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
-                        }
-                    } else {
-                        // Jika serverUrl kosong: nonaktifkan tombol dan tampilkan pesan
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Surface)
-                                .border(1.dp, Border, RoundedCornerShape(12.dp))
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Isi alamat server dulu di bawah sebelum membuat atau masuk ruang.",
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    color = TextSecondary,
-                                    textAlign = TextAlign.Center
-                                )
-                            )
-                        }
                     }
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    // ── Bagian Pengaturan Server ──────────────────────────────────
+                    // ── Bagian Nama Panggilan ─────────────────────────────────────
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -506,7 +482,7 @@ fun ListenTogetherSheet(
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
                         Text(
-                            text = "Pengaturan server",
+                            text = "Nama panggilan",
                             style = MaterialTheme.typography.titleSmall.copy(
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
@@ -514,106 +490,41 @@ fun ListenTogetherSheet(
                             )
                         )
 
-                        // Input Alamat Server
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(
-                                text = "Alamat server (Firebase Realtime Database)",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 12.sp,
-                                    color = TextSecondary
-                                )
-                            )
-
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(46.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(SurfaceHigh)
-                                    .border(1.dp, Border, RoundedCornerShape(10.dp))
-                                    .padding(horizontal = 12.dp),
-                                contentAlignment = Alignment.CenterStart
-                            ) {
-                                if (serverUrlInput.isEmpty()) {
-                                    Text(
-                                        text = "https://proyek.firebasedatabase.app",
-                                        style = MaterialTheme.typography.bodySmall.copy(color = TextMuted)
-                                    )
-                                }
-                                BasicTextField(
-                                    value = serverUrlInput,
-                                    onValueChange = {
-                                        serverUrlInput = it
-                                        settingsSuccess = false
-                                        settingsError = null
-                                    },
-                                    singleLine = true,
-                                    textStyle = MaterialTheme.typography.bodySmall.copy(
-                                        fontSize = 13.sp,
-                                        color = TextPrimary
-                                    ),
-                                    cursorBrush = SolidColor(TextPrimary),
-                                    modifier = Modifier.fillMaxWidth()
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(SurfaceHigh)
+                                .border(1.dp, Border, RoundedCornerShape(10.dp))
+                                .padding(horizontal = 12.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            if (nicknameInput.isEmpty()) {
+                                Text(
+                                    text = "Aku",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = TextMuted)
                                 )
                             }
-                        }
-
-                        // Input Nama Panggilan
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(
-                                text = "Nama panggilan",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 12.sp,
-                                    color = TextSecondary
-                                )
-                            )
-
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(46.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(SurfaceHigh)
-                                    .border(1.dp, Border, RoundedCornerShape(10.dp))
-                                    .padding(horizontal = 12.dp),
-                                contentAlignment = Alignment.CenterStart
-                            ) {
-                                if (nicknameInput.isEmpty()) {
-                                    Text(
-                                        text = "Aku",
-                                        style = MaterialTheme.typography.bodySmall.copy(color = TextMuted)
-                                    )
-                                }
-                                BasicTextField(
-                                    value = nicknameInput,
-                                    onValueChange = {
-                                        nicknameInput = it
-                                        settingsSuccess = false
-                                    },
-                                    singleLine = true,
-                                    textStyle = MaterialTheme.typography.bodySmall.copy(
-                                        fontSize = 13.sp,
-                                        color = TextPrimary
-                                    ),
-                                    cursorBrush = SolidColor(TextPrimary),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                        }
-
-                        if (settingsError != null) {
-                            Text(
-                                text = settingsError ?: "",
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    color = Color(0xFFFFB4AB),
-                                    fontSize = 12.sp
-                                )
+                            BasicTextField(
+                                value = nicknameInput,
+                                onValueChange = {
+                                    nicknameInput = it
+                                    settingsSuccess = false
+                                },
+                                singleLine = true,
+                                textStyle = MaterialTheme.typography.bodySmall.copy(
+                                    fontSize = 13.sp,
+                                    color = TextPrimary
+                                ),
+                                cursorBrush = SolidColor(TextPrimary),
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
 
                         if (settingsSuccess) {
                             Text(
-                                text = "Pengaturan berhasil disimpan",
+                                text = "Nama panggilan berhasil disimpan",
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     color = Color(0xFF81C784),
                                     fontSize = 12.sp
@@ -623,18 +534,9 @@ fun ListenTogetherSheet(
 
                         Button(
                             onClick = {
-                                val validation = TogetherPreferences.validateServerUrl(serverUrlInput)
-                                if (validation.isSuccess) {
-                                    val validUrl = validation.getOrThrow()
-                                    prefs.serverUrl = validUrl
-                                    prefs.nickname = nicknameInput.ifBlank { "Aku" }
-                                    settingsError = null
-                                    settingsSuccess = true
-                                    keyboardController?.hide()
-                                } else {
-                                    settingsError = validation.exceptionOrNull()?.message ?: "Alamat server tidak valid"
-                                    settingsSuccess = false
-                                }
+                                prefs.nickname = nicknameInput.ifBlank { "Aku" }
+                                settingsSuccess = true
+                                keyboardController?.hide()
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -646,7 +548,7 @@ fun ListenTogetherSheet(
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Text(
-                                text = "Simpan pengaturan",
+                                text = "Simpan",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold
                             )

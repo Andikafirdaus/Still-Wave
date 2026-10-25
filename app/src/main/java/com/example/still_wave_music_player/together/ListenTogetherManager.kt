@@ -3,6 +3,7 @@ package com.example.still_wave_music_player.together
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
@@ -180,11 +181,13 @@ object ListenTogetherManager {
      */
     fun createRoom(context: Context) {
         val prefs = TogetherPreferences(context)
-        val serverUrl = prefs.serverUrl
-        if (serverUrl.isBlank()) {
-            _uiState.update { it.copy(pesanGalat = "Isi alamat server dulu") }
+        val rawServerUrl = prefs.serverUrl.ifBlank { TogetherPreferences.DEFAULT_SERVER_URL }
+        val validUrlResult = TogetherPreferences.validateServerUrl(rawServerUrl)
+        if (validUrlResult.isFailure) {
+            _uiState.update { it.copy(pesanGalat = "Alamat server tidak valid") }
             return
         }
+        val serverUrl = validUrlResult.getOrThrow()
 
         _uiState.update { it.copy(status = TogetherStatus.Menghubungkan, pesanGalat = null) }
 
@@ -339,11 +342,13 @@ object ListenTogetherManager {
         }
 
         val prefs = TogetherPreferences(context)
-        val serverUrl = prefs.serverUrl
-        if (serverUrl.isBlank()) {
-            _uiState.update { it.copy(pesanGalat = "Isi alamat server dulu") }
+        val rawServerUrl = prefs.serverUrl.ifBlank { TogetherPreferences.DEFAULT_SERVER_URL }
+        val validUrlResult = TogetherPreferences.validateServerUrl(rawServerUrl)
+        if (validUrlResult.isFailure) {
+            _uiState.update { it.copy(pesanGalat = "Alamat server tidak valid") }
             return
         }
+        val serverUrl = validUrlResult.getOrThrow()
 
         _uiState.update { it.copy(status = TogetherStatus.Menghubungkan, pesanGalat = null) }
 

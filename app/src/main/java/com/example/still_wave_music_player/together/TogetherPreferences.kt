@@ -14,7 +14,10 @@ class TogetherPreferences(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("pengaturan", Context.MODE_PRIVATE)
 
     var serverUrl: String
-        get() = prefs.getString("serverUrl", "") ?: ""
+        get() {
+            val saved = prefs.getString("serverUrl", null)
+            return if (saved.isNullOrBlank()) DEFAULT_SERVER_URL else saved
+        }
         set(value) = prefs.edit().putString("serverUrl", value).apply()
 
     var nickname: String
@@ -32,6 +35,8 @@ class TogetherPreferences(context: Context) {
         }
 
     companion object {
+        const val DEFAULT_SERVER_URL = "https://still-wave-8fa44-default-rtdb.asia-southeast1.firebasedatabase.app"
+
         /**
          * Validasi serverUrl:
          * - dipangkas spasi
