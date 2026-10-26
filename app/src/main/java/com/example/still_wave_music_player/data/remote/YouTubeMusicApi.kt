@@ -438,8 +438,9 @@ object YouTubeMusicApi {
             val infoSegments = nonTypeSegments.toMutableList()
             if (infoSegments.isNotEmpty()) {
                 val last = infoSegments.last()
-                if (last.matches(Regex("""^(\d{1,2}:)?\d{1,2}:\d{2}$"""))) {
-                    durationMs = parseDurationMs(last)
+                val cleanLast = last.replace('.', ':')
+                if (cleanLast.matches(Regex("""^(\d{1,2}:)?\d{1,2}:\d{2}$"""))) {
+                    durationMs = parseDurationMs(cleanLast)
                     infoSegments.removeAt(infoSegments.size - 1)
                 }
             }
@@ -815,7 +816,8 @@ object YouTubeMusicApi {
      * Mengubah string format durasi (m:ss atau h:mm:ss) ke milidetik.
      */
     private fun parseDurationMs(durationStr: String): Long {
-        val parts = durationStr.trim().split(":")
+        val cleanStr = durationStr.trim().replace('.', ':')
+        val parts = cleanStr.split(":")
         return try {
             when (parts.size) {
                 2 -> {
@@ -1844,7 +1846,8 @@ object YouTubeMusicApi {
                             ?.takeIf { it.isNotBlank() }
                             ?: findWatchEndpointVideoId(item)
                         if (!vId.isNullOrBlank()) {
-                            val song = parseSongItem(item, vId)
+                            // Perbaikan: Kirim `title` sebagai defaultArtist agar tidak "Artis tidak diketahui"
+                            val song = parseSongItem(item, vId, defaultArtist = title)
                             if (song != null) {
                                 popularSongs.add(song)
                                 if (popularSongs.size >= 4) break
@@ -1996,7 +1999,8 @@ object YouTubeMusicApi {
         return browseId to pageType
     }
 
-    private fun parseSongItem(item: JSONObject, videoId: String): Song? {
+    // PERBAIKAN UTAMA: Menambahkan parameter defaultArtist
+    private fun parseSongItem(item: JSONObject, videoId: String, defaultArtist: String? = null): Song? {
         val flexColumns = item.optJSONArray("flexColumns")
         val col0 = flexColumns?.optJSONObject(0)
         val text0 = col0?.optJSONObject("musicResponsiveListItemFlexColumnRenderer")?.optJSONObject("text")
@@ -2047,14 +2051,16 @@ object YouTubeMusicApi {
         val infoSegments = nonTypeSegments.toMutableList()
         if (infoSegments.isNotEmpty()) {
             val last = infoSegments.last()
-            if (last.matches(Regex("""^(\d{1,2}:)?\d{1,2}:\d{2}$"""))) {
-                durationMs = parseDurationMs(last)
+            val cleanLast = last.replace('.', ':')
+            if (cleanLast.matches(Regex("""^(\d{1,2}:)?\d{1,2}:\d{2}$"""))) {
+                durationMs = parseDurationMs(cleanLast)
                 infoSegments.removeAt(infoSegments.size - 1)
             }
         }
 
+        // Gunakan defaultArtist jika infoSegments kosong
         val (artist, album) = when (infoSegments.size) {
-            0 -> "Artis tidak diketahui" to ""
+            0 -> (defaultArtist ?: "Artis tidak diketahui") to ""
             1 -> infoSegments[0] to ""
             else -> {
                 val albumName = infoSegments.last()
