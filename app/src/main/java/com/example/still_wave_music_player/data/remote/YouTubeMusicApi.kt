@@ -1815,12 +1815,18 @@ object YouTubeMusicApi {
 
         return when (topType) {
             TopResultType.ARTIS -> {
-                val effectiveId = titleBrowseEndpoint?.optString("browseId")?.takeIf { it.isNotBlank() }
-                    ?: cardNavEndpoint?.optJSONObject("browseEndpoint")?.optString("browseId")?.takeIf { it.isNotBlank() }
-                    ?: card.optJSONObject("onTap")?.optJSONObject("browseEndpoint")?.optString("browseId")?.takeIf { it.isNotBlank() }
-                    ?: findBrowseEndpointWithPrefix(card, "UC") ?: ""
-                val listenersText = nonDurationSegments.firstOrNull()?.joinToString("") { it.optString("text") }?.trim().orEmpty()
-                val subtitleText = if (listenersText.isNotBlank()) "Artis • $listenersText" else "Artis"
+                val effectiveId =
+                    titleBrowseEndpoint?.optString("browseId")?.takeIf { it.isNotBlank() }
+                        ?: cardNavEndpoint?.optJSONObject("browseEndpoint")?.optString("browseId")
+                            ?.takeIf { it.isNotBlank() }
+                        ?: card.optJSONObject("onTap")?.optJSONObject("browseEndpoint")
+                            ?.optString("browseId")?.takeIf { it.isNotBlank() }
+                        ?: findBrowseEndpointWithPrefix(card, "UC") ?: ""
+                val listenersText =
+                    nonDurationSegments.firstOrNull()?.joinToString("") { it.optString("text") }
+                        ?.trim().orEmpty()
+                val subtitleText =
+                    if (listenersText.isNotBlank()) "Artis • $listenersText" else "Artis"
                 val artist = ArtistSearchResult(
                     browseId = effectiveId,
                     name = title,
@@ -1832,8 +1838,10 @@ object YouTubeMusicApi {
                 val cardContents = card.optJSONArray("contents")
                 if (cardContents != null) {
                     for (i in 0 until cardContents.length()) {
-                        val item = cardContents.optJSONObject(i)?.optJSONObject("musicResponsiveListItemRenderer") ?: continue
-                        val vId = item.optJSONObject("playlistItemData")?.optString("videoId")?.takeIf { it.isNotBlank() }
+                        val item = cardContents.optJSONObject(i)
+                            ?.optJSONObject("musicResponsiveListItemRenderer") ?: continue
+                        val vId = item.optJSONObject("playlistItemData")?.optString("videoId")
+                            ?.takeIf { it.isNotBlank() }
                             ?: findWatchEndpointVideoId(item)
                         if (!vId.isNullOrBlank()) {
                             val song = parseSongItem(item, vId)
@@ -1855,14 +1863,21 @@ object YouTubeMusicApi {
                     popularSongs = popularSongs
                 )
             }
+
             TopResultType.ALBUM -> {
-                val effectiveId = titleBrowseEndpoint?.optString("browseId")?.takeIf { it.isNotBlank() }
-                    ?: cardNavEndpoint?.optJSONObject("browseEndpoint")?.optString("browseId")?.takeIf { it.isNotBlank() }
-                    ?: card.optJSONObject("onTap")?.optJSONObject("browseEndpoint")?.optString("browseId")?.takeIf { it.isNotBlank() }
-                    ?: findBrowseEndpointWithPrefix(card, "MPRE") ?: ""
-                val nonDurTexts = nonDurationSegments.map { seg -> seg.joinToString("") { it.optString("text") }.trim() }
+                val effectiveId =
+                    titleBrowseEndpoint?.optString("browseId")?.takeIf { it.isNotBlank() }
+                        ?: cardNavEndpoint?.optJSONObject("browseEndpoint")?.optString("browseId")
+                            ?.takeIf { it.isNotBlank() }
+                        ?: card.optJSONObject("onTap")?.optJSONObject("browseEndpoint")
+                            ?.optString("browseId")?.takeIf { it.isNotBlank() }
+                        ?: findBrowseEndpointWithPrefix(card, "MPRE") ?: ""
+                val nonDurTexts = nonDurationSegments.map { seg ->
+                    seg.joinToString("") { it.optString("text") }.trim()
+                }
                 val artistName = nonDurTexts.firstOrNull().orEmpty()
-                val year = nonDurTexts.getOrNull(1)?.takeIf { it.matches(Regex("""^\d{4}$""")) } ?: ""
+                val year =
+                    nonDurTexts.getOrNull(1)?.takeIf { it.matches(Regex("""^\d{4}$""")) } ?: ""
                 val subtitleText = when {
                     artistName.isNotBlank() && year.isNotBlank() -> "Album • $artistName • $year"
                     artistName.isNotBlank() -> "Album • $artistName"
@@ -1884,6 +1899,7 @@ object YouTubeMusicApi {
                     album = album
                 )
             }
+
             TopResultType.LAGU -> {
                 val effectiveVideoId = videoId ?: ""
                 // Kumpulkan nama artis dari segmen non-durasi (bisa beberapa artis digabung koma)
@@ -1891,7 +1907,9 @@ object YouTubeMusicApi {
                 var albumName = ""
                 for (seg in nonDurationSegments) {
                     val segRunsWithArtist = seg.filter { r ->
-                        val bId = r.optJSONObject("navigationEndpoint")?.optJSONObject("browseEndpoint")?.optString("browseId")
+                        val bId =
+                            r.optJSONObject("navigationEndpoint")?.optJSONObject("browseEndpoint")
+                                ?.optString("browseId")
                         bId != null && bId.startsWith("UC")
                     }
                     if (segRunsWithArtist.isNotEmpty()) {
@@ -1902,7 +1920,11 @@ object YouTubeMusicApi {
                     } else {
                         val segText = seg.joinToString("") { it.optString("text") }.trim()
                         // Jika bukan view count (e.g. "1 M x ditonton")
-                        if (!segText.contains("ditonton", ignoreCase = true) && !segText.contains("views", ignoreCase = true)) {
+                        if (!segText.contains(
+                                "ditonton",
+                                ignoreCase = true
+                            ) && !segText.contains("views", ignoreCase = true)
+                        ) {
                             if (artistNames.isEmpty()) {
                                 artistNames.add(segText)
                             } else if (albumName.isBlank()) {
@@ -1944,6 +1966,8 @@ object YouTubeMusicApi {
                     thumbnailUrl = finalThumbnailUrl,
                     song = song
                 )
+            }
+        }
     }
 
     private fun extractBrowseIdAndPageType(item: JSONObject): Pair<String?, String?> {
