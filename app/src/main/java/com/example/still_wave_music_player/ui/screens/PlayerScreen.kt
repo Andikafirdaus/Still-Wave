@@ -81,6 +81,7 @@ import com.example.still_wave_music_player.ui.components.AppIcons
 import com.example.still_wave_music_player.ui.components.FloatingGlass
 import com.example.still_wave_music_player.ui.components.ListenTogetherSheet
 import com.example.still_wave_music_player.ui.components.QueueSheet
+import com.example.still_wave_music_player.utils.formatDurasi
 import com.example.still_wave_music_player.ui.theme.Accent
 import com.example.still_wave_music_player.ui.theme.Background
 import com.example.still_wave_music_player.ui.theme.Border
@@ -286,7 +287,7 @@ fun PlayerScreen(
                 }
             )
 
-            if (!song.album.isNullOrBlank()) {
+            if (!song.album.isNullOrBlank() && !song.album.replace('.', ':').matches(Regex("""^(\d{1,2}:)?\d{1,2}:\d{2}$"""))) {
                 Spacer(modifier = Modifier.height(3.dp))
                 Text(
                     text = song.album,
@@ -546,7 +547,7 @@ private fun CustomProgressBar(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = formatDuration(currentMs),
+                text = formatDurasi(currentMs),
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontSize = 12.sp,
                     color = TextSecondary
@@ -554,7 +555,7 @@ private fun CustomProgressBar(
             )
 
             Text(
-                text = "-${formatDuration(remainingMs)}",
+                text = "-${formatDurasi(remainingMs)}",
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontSize = 12.sp,
                     color = TextSecondary
@@ -685,15 +686,6 @@ private fun BouncyIconButton(
     }
 }
 
-/**
- * Format durasi milidetik menjadi m:ss.
- */
-private fun formatDuration(ms: Long): String {
-    val totalSeconds = (ms / 1000L).coerceAtLeast(0L)
-    val minutes = totalSeconds / 60L
-    val seconds = totalSeconds % 60L
-    return String.format(Locale.getDefault(), "%d:%02d", minutes, seconds)
-}
 
 /**
  * Panel tampilan lirik lagu:

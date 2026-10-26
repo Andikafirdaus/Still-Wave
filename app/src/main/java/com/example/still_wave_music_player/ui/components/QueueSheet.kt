@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.still_wave_music_player.data.model.Song
+import com.example.still_wave_music_player.utils.formatDurasi
 import com.example.still_wave_music_player.ui.theme.Accent
 import com.example.still_wave_music_player.ui.theme.Surface
 import com.example.still_wave_music_player.ui.theme.SurfaceHigh
@@ -270,7 +271,7 @@ private fun QueueSongRow(
         // Durasi
         if (song.durationMs > 0L) {
             Text(
-                text = formatQueueDuration(song.durationMs),
+                text = formatDurasi(song.durationMs),
                 fontSize = 12.sp,
                 color = TextMuted,
                 modifier = Modifier.padding(horizontal = 8.dp)
@@ -294,9 +295,3 @@ private fun QueueSongRow(
     }
 }
 
-private fun formatQueueDuration(ms: Long): String {
-    val totalSecs = (ms / 1000).coerceAtLeast(0)
-    val mins = totalSecs / 60
-    val secs = totalSecs % 60
-    return String.format(Locale.ROOT, "%d:%02d", mins, secs)
-}

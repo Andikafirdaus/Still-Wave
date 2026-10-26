@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.still_wave_music_player.data.model.Song
+import com.example.still_wave_music_player.utils.formatDurasi
 import com.example.still_wave_music_player.ui.components.AppIcons
 import com.example.still_wave_music_player.ui.components.ThumbnailArt
 import com.example.still_wave_music_player.ui.theme.Accent
@@ -317,10 +318,8 @@ fun AlbumScreen(
                                 }
 
                                 if (song.durationMs > 0) {
-                                    val sec = (song.durationMs / 1000) % 60
-                                    val min = (song.durationMs / 1000) / 60
                                     Text(
-                                        text = String.format("%d:%02d", min, sec),
+                                        text = formatDurasi(song.durationMs),
                                         style = MaterialTheme.typography.bodySmall.copy(
                                             fontSize = 12.sp,
                                             color = TextSecondary
