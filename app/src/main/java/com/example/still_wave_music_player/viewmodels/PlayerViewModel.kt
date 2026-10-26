@@ -24,6 +24,8 @@ import com.example.still_wave_music_player.data.repository.HistoryRepository
 import com.example.still_wave_music_player.data.repository.LyricsRepository
 import com.example.still_wave_music_player.data.repository.SettingsRepository
 import com.example.still_wave_music_player.playback.MusicService
+import com.example.still_wave_music_player.playback.SleepTimerManager // TAMBAHAN IMPORT
+import com.example.still_wave_music_player.playback.SleepTimerState // TAMBAHAN IMPORT
 import com.example.still_wave_music_player.together.ListenTogetherManager
 import com.example.still_wave_music_player.together.createOnlineMediaItem
 import com.google.common.util.concurrent.ListenableFuture
@@ -77,6 +79,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
+
+    // TAMBAHAN: StateFlow untuk membaca status timer tidur dari SleepTimerManager
+    val sleepTimerState: StateFlow<SleepTimerState> = SleepTimerManager.state
 
     private val lyricsRepository = LyricsRepository.getInstance(application)
     private val _lyricsState = MutableStateFlow<LyricsUiState>(LyricsUiState.Loading)
@@ -157,7 +162,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             } ?: mediaItem?.let { item ->
                 val metadata = item.mediaMetadata
                 val isOnline = item.requestMetadata.mediaUri?.scheme == "ytm" ||
-                    item.localConfiguration?.uri?.scheme == "ytm"
+                        item.localConfiguration?.uri?.scheme == "ytm"
                 Song(
                     id = if (isOnline) "yt_${item.mediaId}" else item.mediaId,
                     title = metadata.title?.toString() ?: "Tanpa Judul",
@@ -296,7 +301,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         } ?: currentItem?.let { item ->
             val metadata = item.mediaMetadata
             val isOnline = item.requestMetadata.mediaUri?.scheme == "ytm" ||
-                item.localConfiguration?.uri?.scheme == "ytm"
+                    item.localConfiguration?.uri?.scheme == "ytm"
             Song(
                 id = if (isOnline) "yt_${item.mediaId}" else item.mediaId,
                 title = metadata.title?.toString() ?: "Tanpa Judul",
@@ -587,7 +592,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val currentQueue = _uiState.value.queue
         val currentIndex = currentQueue.indexOfFirst {
             (it.id == currentSong.id && it.id.isNotBlank()) ||
-            (!it.videoId.isNullOrBlank() && it.videoId == currentSong.videoId)
+                    (!it.videoId.isNullOrBlank() && it.videoId == currentSong.videoId)
         }.takeIf { it != -1 } ?: 0
 
         _uiState.update { it.copy(queue = listOf(currentSong)) }
@@ -733,6 +738,19 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
             _uiState.update { it.copy(repeatMode = nextUiMode) }
         }
+    }
+
+    // TAMBAHAN: Fungsi-fungsi kontrol Timer Tidur
+    fun setSleepTimer(minutes: Int) {
+        SleepTimerManager.startTimer(minutes)
+    }
+
+    fun setSleepTimerUntilEnd() {
+        SleepTimerManager.startUntilEndOfSong()
+    }
+
+    fun cancelSleepTimer() {
+        SleepTimerManager.cancelTimer()
     }
 
     override fun onCleared() {

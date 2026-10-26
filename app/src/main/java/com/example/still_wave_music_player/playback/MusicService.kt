@@ -123,6 +123,9 @@ class MusicService : MediaSessionService() {
 
         ListenTogetherManager.attachPlayer(this, player)
 
+        // TAMBAHAN BARU: Hubungkan player ke SleepTimerManager
+        SleepTimerManager.attachPlayer(player)
+
         // 4. Pasang listener penanganan error dan retry kedaluwarsa pada ExoPlayer
         player.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -302,6 +305,10 @@ class MusicService : MediaSessionService() {
     override fun onDestroy() {
         prefetchJob?.cancel()
         crossfadeJob?.cancel()
+
+        // TAMBAHAN BARU: Putuskan koneksi timer saat service mati
+        SleepTimerManager.detachPlayer()
+
         ListenTogetherManager.detachPlayer()
         mediaSession?.run {
             player.release()

@@ -9,6 +9,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.exoplayer.ExoPlayer
 import com.example.still_wave_music_player.data.model.Song
+import com.example.still_wave_music_player.playback.SleepTimerManager // TAMBAHAN IMPORT
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -88,6 +89,10 @@ object ListenTogetherManager {
     @Volatile
     private var applyingRemote = false
 
+    @Volatile
+    private var isAutoPaused = false
+    private var skipNextSync = false
+
     private var lastSyncedQueueHash: Int = 0
     private var lastRemoteState: RoomState? = null
 
@@ -120,6 +125,27 @@ object ListenTogetherManager {
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             onLocalPlayerEvent("onIsPlayingChanged")
+        }
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            if (!playWhenReady && (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS || reason == Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_BECOMING_NOISY)) {
+                // Jeda karena telepon/alarm/headset lepas
+                isAutoPaused = true
+            } else if (playWhenReady) {
+                if (isAutoPaused) {
+                    isAutoPaused = false
+                    skipNextSync = true // Cegah pengiriman state lama ke ruang
+
+                    // Geser posisi ke tempat yang seharusnya (posisi teman)
+                    val state = lastRemoteState
+                    if (state != null && state.isPlaying) {
+                        val nowServer = serverNow()
+                        val expectedPositionMs = state.positionMs + (nowServer - state.atServerMs).coerceAtLeast(0L)
+                        mainHandler.post {
+                            exoPlayer?.seekTo(expectedPositionMs.coerceAtLeast(0L))
+                        }
+                    }
+                }
+            }
         }
 
         override fun onPositionDiscontinuity(
@@ -163,16 +189,25 @@ object ListenTogetherManager {
     }
 
     private fun onLocalPlayerEvent(reason: String) {
-        if (applyingRemote || !isConnected()) return
+        // Cek isAutoPaused (jika sedang dijeda oleh telepon/headset)
+        if (applyingRemote || !isConnected() || SleepTimerManager.isFadingOut || isAutoPaused) return
+
+        // Jika baru lanjut dari jeda otomatis, abaikan sinkronisasi pertama
+        if (skipNextSync) {
+            skipNextSync = false
+            return
+        }
 
         debounceSyncJob?.cancel()
         debounceSyncJob = managerScope.launch {
             delay(300L)
-            if (!applyingRemote && isConnected()) {
+            // Cek ulang setelah delay
+            if (!applyingRemote && isConnected() && !SleepTimerManager.isFadingOut && !isAutoPaused) {
                 sendLocalState(reason)
             }
         }
     }
+
 
     private fun serverNow(): Long = System.currentTimeMillis() + currentClockOffsetMs
 
@@ -234,8 +269,8 @@ object ListenTogetherManager {
                             val item = p.getMediaItemAt(i)
                             val vId = item.mediaId
                             val isOnline = item.requestMetadata.mediaUri?.scheme == "ytm" ||
-                                item.localConfiguration?.uri?.scheme == "ytm" ||
-                                !vId.startsWith("content://") && !vId.startsWith("file://")
+                                    item.localConfiguration?.uri?.scheme == "ytm" ||
+                                    !vId.startsWith("content://") && !vId.startsWith("file://")
 
                             if (isOnline && vId.isNotBlank()) {
                                 val meta = item.mediaMetadata
@@ -719,8 +754,8 @@ object ListenTogetherManager {
                 val item = p.getMediaItemAt(i)
                 val vId = item.mediaId
                 val isOnline = item.requestMetadata.mediaUri?.scheme == "ytm" ||
-                    item.localConfiguration?.uri?.scheme == "ytm" ||
-                    (!vId.startsWith("content://") && !vId.startsWith("file://"))
+                        item.localConfiguration?.uri?.scheme == "ytm" ||
+                        (!vId.startsWith("content://") && !vId.startsWith("file://"))
 
                 if (isOnline && vId.isNotBlank()) {
                     val meta = item.mediaMetadata

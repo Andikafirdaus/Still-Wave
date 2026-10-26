@@ -12,6 +12,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -30,25 +32,28 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,6 +79,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.still_wave_music_player.data.model.LyricsUiState
 import com.example.still_wave_music_player.data.model.Song
+import com.example.still_wave_music_player.playback.SleepTimerState // TAMBAHAN IMPORT
 import com.example.still_wave_music_player.together.ListenTogetherManager
 import com.example.still_wave_music_player.together.TogetherStatus
 import com.example.still_wave_music_player.ui.components.AlbumArt
@@ -81,16 +87,19 @@ import com.example.still_wave_music_player.ui.components.AppIcons
 import com.example.still_wave_music_player.ui.components.FloatingGlass
 import com.example.still_wave_music_player.ui.components.ListenTogetherSheet
 import com.example.still_wave_music_player.ui.components.QueueSheet
-import com.example.still_wave_music_player.utils.formatDurasi
 import com.example.still_wave_music_player.ui.theme.Accent
 import com.example.still_wave_music_player.ui.theme.Background
 import com.example.still_wave_music_player.ui.theme.Border
 import com.example.still_wave_music_player.ui.theme.Motion
 import com.example.still_wave_music_player.ui.theme.Surface
+import com.example.still_wave_music_player.ui.theme.SurfaceHigh
 import com.example.still_wave_music_player.ui.theme.TextPrimary
 import com.example.still_wave_music_player.ui.theme.TextSecondary
 import com.example.still_wave_music_player.ui.theme.TextMuted
+import com.example.still_wave_music_player.utils.formatDurasi
 import com.example.still_wave_music_player.viewmodels.RepeatMode
+import android.content.Intent
+import androidx.compose.ui.platform.LocalContext
 import java.util.Locale
 
 /**
@@ -101,6 +110,7 @@ import java.util.Locale
  * bilah progres kustom tanpa Slider bawaan Material, kontrol lengkap,
  * dan penukaran kartu sampul dengan panel lirik tersinkron.
  */
+@OptIn(ExperimentalMaterial3Api::class) // TAMBAHAN UNTUK BOTTOM SHEET
 @Composable
 fun PlayerScreen(
     song: Song,
@@ -114,6 +124,7 @@ fun PlayerScreen(
     isFavorite: Boolean = false,
     queue: List<Song> = emptyList(),
     isRadioQueue: Boolean = false,
+    sleepTimerState: SleepTimerState = SleepTimerState(), // TAMBAHAN PARAMETER
     onClose: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onNext: () -> Unit,
@@ -129,16 +140,22 @@ fun PlayerScreen(
     onOpenAddToPlaylist: () -> Unit = {},
     onNavigateToArtist: (String) -> Unit = {},
     onNavigateToAlbum: (String) -> Unit = {},
+    onSetSleepTimer: (Int) -> Unit = {}, // TAMBAHAN
+    onSetSleepTimerUntilEnd: () -> Unit = {}, // TAMBAHAN
+    onCancelSleepTimer: () -> Unit = {}, // TAMBAHAN
     modifier: Modifier = Modifier
 ) {
     // Tombol Back sistem menutup pemutar lebih dulu
     BackHandler(enabled = true) {
         onClose()
     }
+    val context = LocalContext.current
 
     var showLyrics by rememberSaveable { mutableStateOf(false) }
     var showQueueSheet by rememberSaveable { mutableStateOf(false) }
     var showTogetherSheet by rememberSaveable { mutableStateOf(false) }
+    var showTimerSheet by rememberSaveable { mutableStateOf(false) } // TAMBAHAN STATE
+
     val togetherState by ListenTogetherManager.uiState.collectAsState()
     val isTogetherConnected = togetherState.status == TogetherStatus.Terhubung
 
@@ -221,10 +238,10 @@ fun PlayerScreen(
             targetState = showLyrics,
             transitionSpec = {
                 (fadeIn(animationSpec = spring(dampingRatio = Motion.Standard.dampingRatio, stiffness = Motion.Standard.stiffness)) +
-                    scaleIn(initialScale = 0.94f, animationSpec = spring(dampingRatio = Motion.Standard.dampingRatio, stiffness = Motion.Standard.stiffness)))
+                        scaleIn(initialScale = 0.94f, animationSpec = spring(dampingRatio = Motion.Standard.dampingRatio, stiffness = Motion.Standard.stiffness)))
                     .togetherWith(
                         fadeOut(animationSpec = spring(dampingRatio = Motion.Standard.dampingRatio, stiffness = Motion.Standard.stiffness)) +
-                            scaleOut(targetScale = 0.94f, animationSpec = spring(dampingRatio = Motion.Standard.dampingRatio, stiffness = Motion.Standard.stiffness))
+                                scaleOut(targetScale = 0.94f, animationSpec = spring(dampingRatio = Motion.Standard.dampingRatio, stiffness = Motion.Standard.stiffness))
                     )
             },
             label = "cover_lyrics_swap"
@@ -367,7 +384,7 @@ fun PlayerScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // ── 6. Baris Sekunder: Favorit, Antrean, dan Bareng ──────────────────
+        // ── 6. Baris Sekunder: Favorit, Share, Timer, Antrean, dan Bareng ──────────────────
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -380,7 +397,37 @@ fun PlayerScreen(
                 onClick = onToggleFavorite
             )
 
-            Spacer(modifier = Modifier.width(28.dp))
+            // TAMBAHAN: Tombol Bagikan (Hanya muncul jika lagu online)
+            if (!song.videoId.isNullOrBlank()) {
+                Spacer(modifier = Modifier.width(16.dp)) // Jarak sedikit dirapatkan
+                BouncyIconButton(
+                    icon = AppIcons.Share,
+                    contentDescription = "Bagikan lagu",
+                    tint = TextSecondary,
+                    onClick = {
+                        val shareText = "${song.title} - ${song.artist}\nhttps://music.youtube.com/watch?v=${song.videoId}"
+                        val sendIntent = Intent().apply {
+                            action = Intent.ACTION_SEND
+                            putExtra(Intent.EXTRA_TEXT, shareText)
+                            type = "text/plain"
+                        }
+                        val shareIntent = Intent.createChooser(sendIntent, "Bagikan lagu")
+                        context.startActivity(shareIntent)
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // Tombol Timer Tidur
+            BouncyIconButton(
+                icon = AppIcons.Timer,
+                contentDescription = "Timer tidur",
+                tint = if (sleepTimerState.isActive) Accent else TextSecondary,
+                onClick = { showTimerSheet = true }
+            )
+
+            Spacer(modifier = Modifier.width(16.dp))
 
             BouncyIconButton(
                 icon = AppIcons.QueueMusic,
@@ -389,7 +436,7 @@ fun PlayerScreen(
                 onClick = { showQueueSheet = true }
             )
 
-            Spacer(modifier = Modifier.width(28.dp))
+            Spacer(modifier = Modifier.width(16.dp))
 
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -413,6 +460,20 @@ fun PlayerScreen(
             }
         }
 
+        // TAMBAHAN: Label Timer Aktif
+        if (sleepTimerState.isActive) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = if (sleepTimerState.isUntilEndOfSong) "Timer: Sampai lagu selesai"
+                else "Timer ${formatDurasi(sleepTimerState.remainingMs)}",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Accent
+                )
+            )
+        }
+
         // ── 7. Ruang Kosong Bawah ─────────────────────────────────────────────
         Spacer(modifier = Modifier.height(20.dp))
     }
@@ -433,6 +494,81 @@ fun PlayerScreen(
         ListenTogetherSheet(
             onDismiss = { showTogetherSheet = false }
         )
+    }
+
+    // TAMBAHAN: Bottom Sheet Timer Tidur
+    if (showTimerSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showTimerSheet = false },
+            sheetState = rememberModalBottomSheetState(),
+            containerColor = Surface,
+            contentColor = TextPrimary
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 16.dp)
+            ) {
+                Text(
+                    text = "Timer Tidur",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (sleepTimerState.isActive) {
+                    Text(
+                        text = if (sleepTimerState.isUntilEndOfSong) "Berhenti setelah lagu ini selesai"
+                        else "Sisa waktu: ${formatDurasi(sleepTimerState.remainingMs)}",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = Accent,
+                            fontSize = 16.sp
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = {
+                            onCancelSleepTimer()
+                            showTimerSheet = false
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = SurfaceHigh)
+                    ) {
+                        Text("Matikan timer", color = TextPrimary)
+                    }
+                } else {
+                    val options = listOf(15, 30, 45, 60, 120)
+                    options.forEach { mins ->
+                        Text(
+                            text = if (mins >= 60) "${mins / 60} jam" else "$mins menit",
+                            style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, color = TextPrimary),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onSetSleepTimer(mins)
+                                    showTimerSheet = false
+                                }
+                                .padding(vertical = 14.dp)
+                        )
+                    }
+                    Text(
+                        text = "Sampai lagu ini selesai",
+                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, color = TextPrimary),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onSetSleepTimerUntilEnd()
+                                showTimerSheet = false
+                            }
+                            .padding(vertical = 14.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(32.dp))
+            }
+        }
     }
 }
 
@@ -810,4 +946,3 @@ private fun LyricsPanel(
         }
     }
 }
-
