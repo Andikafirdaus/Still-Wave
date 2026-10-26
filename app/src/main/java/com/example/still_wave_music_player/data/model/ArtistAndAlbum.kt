@@ -64,7 +64,8 @@ data class TopResult(
     val thumbnailUrl: String? = null,
     val song: Song? = null,
     val artist: ArtistSearchResult? = null,
-    val album: AlbumSearchResult? = null
+    val album: AlbumSearchResult? = null,
+    val popularSongs: List<Song> = emptyList()
 )
 
 /**

@@ -748,7 +748,7 @@ object YouTubeMusicApi {
     /**
      * Mencari objek musicResponsiveListItemRenderer secara rekursif dalam hierarki JSON.
      */
-    private fun findItemRenderers(json: Any, results: MutableList<JSONObject>) {
+    private fun findItemRenderers(json: Any, results: MutableCollection<JSONObject>) {
         when (json) {
             is JSONObject -> {
                 val renderer = json.optJSONObject("musicResponsiveListItemRenderer")
@@ -1531,20 +1531,29 @@ object YouTubeMusicApi {
 
         topResult?.let { tr ->
             when (tr.type) {
-                TopResultType.LAGU -> if (tr.id.isNotBlank()) seenVideoIds.add(tr.id)
+                TopResultType.LAGU -> {
+                    // Jangan de-duplikasi lagu: Bagian Lagu tetap menampilkan hasil pencarian lagu,
+                    // termasuk lagu yang sama dengan Hasil teratas boleh muncul lagi.
+                }
                 TopResultType.ARTIS -> if (tr.id.isNotBlank()) seenArtistBrowseIds.add(tr.id)
                 TopResultType.ALBUM -> if (tr.id.isNotBlank()) seenAlbumBrowseIds.add(tr.id)
             }
         }
 
-        // 2. Kumpulkan semua musicShelfRenderer (jangan sertakan isi contents dari musicCardShelfRenderer)
-        val shelfRenderers = mutableListOf<JSONObject>()
-        findAllObjectsNamed(rootJson, "musicShelfRenderer", shelfRenderers)
-
-        val itemRenderers = mutableListOf<JSONObject>()
-        for (shelf in shelfRenderers) {
-            findItemRenderers(shelf, itemRenderers)
+        // 2. Kumpulkan item dari seluruh respons, kecuali yang ada di dalam contents musicCardShelfRenderer
+        val cardContentsArray = cardRenderer?.optJSONArray("contents")
+        val cardRenderers = mutableSetOf<JSONObject>()
+        if (cardContentsArray != null) {
+            for (i in 0 until cardContentsArray.length()) {
+                val cItem = cardContentsArray.optJSONObject(i) ?: continue
+                findItemRenderers(cItem, cardRenderers)
+            }
         }
+
+        val allItemRenderers = mutableListOf<JSONObject>()
+        findItemRenderers(rootJson, allItemRenderers)
+
+        val itemRenderers = allItemRenderers.filter { it !in cardRenderers }
 
         for (item in itemRenderers) {
             val videoId = item.optJSONObject("playlistItemData")?.optString("videoId")?.takeIf { it.isNotBlank() }
@@ -1647,6 +1656,7 @@ object YouTubeMusicApi {
             }
         }
 
+        Log.d(TAG, "hasil semua lagu=${songs.size} artis=${artists.size} album=${albums.size}")
         Log.d(TAG, "hasil teratas tipe=${topResult?.type?.name?.lowercase(Locale.ROOT) ?: "null"}")
 
         return SearchAllResult(
@@ -1659,8 +1669,11 @@ object YouTubeMusicApi {
 
     /**
      * Mengurai kartu musicCardShelfRenderer menjadi TopResult.
-     * Tipe ditentukan dari HEADER kartu: teks run pertama di subtitle dan navigationEndpoint judul.
-     * Tidak memakai contents kartu sebagai hasil teratas.
+     * Tipe ditentukan berurutan sesuai aturan prioritas:
+     * 1. Teks run pertama subtitle (Lagu/Song -> LAGU, Artis/Artist -> ARTIS, Album -> ALBUM, Video -> LAGU, Playlist -> ALBUM)
+     * 2. Endpoint pada run JUDUL saja (watchEndpoint -> LAGU, browseEndpoint ARTIST -> ARTIS, ALBUM -> ALBUM)
+     * 3. Jika kartu punya watchEndpoint/videoId dan tidak ada tanda ARTIS di run judul -> LAGU
+     * Tidak menyimpulkan tipe dari endpoint pada run artis/album di subtitle.
      */
     private fun parseTopResultFromCard(card: JSONObject): TopResult? {
         val header = card.optJSONObject("header")?.optJSONObject("musicCardShelfHeaderBasicRenderer")
@@ -1682,23 +1695,63 @@ object YouTubeMusicApi {
         }
         val finalThumbnailUrl = upgradeThumbnailUrl(imageUrl)
 
-        val firstRun = titleRuns?.optJSONObject(0)
-        val navEndpoint = firstRun?.optJSONObject("navigationEndpoint")
-            ?: card.optJSONObject("navigationEndpoint")
-            ?: header?.optJSONObject("navigationEndpoint")
+        val titleFirstRun = titleRuns?.optJSONObject(0)
+        val titleNavEndpoint = titleFirstRun?.optJSONObject("navigationEndpoint")
+        val titleWatchEndpoint = titleNavEndpoint?.optJSONObject("watchEndpoint")
+        val titleBrowseEndpoint = titleNavEndpoint?.optJSONObject("browseEndpoint")
+        val titlePageType = titleBrowseEndpoint?.optJSONObject("browseEndpointContextSupportedConfigs")
+            ?.optJSONObject("browseEndpointContextMusicConfig")
+            ?.optString("pageType") ?: ""
 
-        val watchEndpoint = navEndpoint?.optJSONObject("watchEndpoint")
+        val cardNavEndpoint = card.optJSONObject("navigationEndpoint") ?: header?.optJSONObject("navigationEndpoint")
+        val cardWatchEndpoint = titleWatchEndpoint
+            ?: cardNavEndpoint?.optJSONObject("watchEndpoint")
             ?: card.optJSONObject("onTap")?.optJSONObject("watchEndpoint")
-            ?: findFirstObjectNamed(card, setOf("watchEndpoint"))
-        val videoId = watchEndpoint?.optString("videoId")?.takeIf { it.isNotBlank() }
+        val videoId = cardWatchEndpoint?.optString("videoId")?.takeIf { it.isNotBlank() }
             ?: findWatchEndpointVideoId(card)
 
-        val browseEndpoint = navEndpoint?.optJSONObject("browseEndpoint")
-            ?: findFirstObjectNamed(card, setOf("browseEndpoint"))
-        val browseId = browseEndpoint?.optString("browseId")?.takeIf { it.isNotBlank() }
-        val pageType = browseEndpoint?.optJSONObject("browseEndpointContextSupportedConfigs")
-            ?.optJSONObject("browseEndpointContextMusicConfig")
-            ?.optString("pageType")
+        // Log sementara sesuai Tugas B.1
+        val cardKeys = mutableListOf<String>()
+        val keysIter = card.keys()
+        while (keysIter.hasNext()) cardKeys.add(keysIter.next())
+        val subRunTexts = mutableListOf<String>()
+        if (subtitleRuns != null) {
+            for (i in 0 until minOf(6, subtitleRuns.length())) {
+                subRunTexts.add(subtitleRuns.optJSONObject(i)?.optString("text") ?: "")
+            }
+        }
+        val hasWatchInTitle = titleWatchEndpoint != null
+        val hasWatchInCard = cardWatchEndpoint != null || !videoId.isNullOrBlank()
+        Log.d(TAG, "kartu kunci=$cardKeys subtitleRuns=$subRunTexts watchJudul=$hasWatchInTitle watchKartu=$hasWatchInCard pageTypeJudul=$titlePageType")
+
+        // 2. Tentukan tipe kartu berurutan, berhenti di yang pertama cocok:
+        val firstRunText = subtitleRuns?.optJSONObject(0)?.optString("text")?.trim() ?: ""
+        val firstMarker = firstRunText.lowercase(Locale.ROOT)
+
+        var matchedType: TopResultType? = when (firstMarker) {
+            "lagu", "song", "video" -> TopResultType.LAGU
+            "artis", "artist" -> TopResultType.ARTIS
+            "album", "playlist" -> TopResultType.ALBUM
+            else -> null
+        }
+
+        if (matchedType == null) {
+            matchedType = when {
+                titleWatchEndpoint != null -> TopResultType.LAGU
+                titlePageType.endsWith("ARTIST") -> TopResultType.ARTIS
+                titlePageType.endsWith("ALBUM") -> TopResultType.ALBUM
+                else -> null
+            }
+        }
+
+        if (matchedType == null) {
+            val isTitleArtist = titlePageType.endsWith("ARTIST")
+            if (hasWatchInCard && !isTitleArtist) {
+                matchedType = TopResultType.LAGU
+            }
+        }
+
+        val topType = matchedType ?: TopResultType.LAGU
 
         // Ekstraksi segmen run dari subtitle yang dipisahkan oleh run berisi "•"
         val segments = mutableListOf<MutableList<JSONObject>>()
@@ -1719,32 +1772,6 @@ object YouTubeMusicApi {
             if (currentSeg.isNotEmpty()) {
                 segments.add(currentSeg)
             }
-        }
-
-        val firstRunText = subtitleRuns?.optJSONObject(0)?.optString("text")?.trim() ?: ""
-        val firstMarker = firstRunText.lowercase(Locale.ROOT)
-
-        val isArtistType = pageType == "MUSIC_PAGE_TYPE_ARTIST" ||
-            (browseId != null && browseId.startsWith("UC")) ||
-            firstMarker in listOf("artis", "artist")
-
-        val isAlbumType = pageType == "MUSIC_PAGE_TYPE_ALBUM" ||
-            (browseId != null && (browseId.startsWith("MPRE") || browseId.startsWith("FEmusic_library_privately_owned_release"))) ||
-            firstMarker in listOf("album", "ep", "single", "playlist")
-
-        val isSongType = !isArtistType && !isAlbumType && (
-            watchEndpoint != null ||
-            !videoId.isNullOrBlank() ||
-            firstMarker in listOf("lagu", "song", "video", "track")
-        )
-
-        val topType = when {
-            isArtistType -> TopResultType.ARTIS
-            isAlbumType -> TopResultType.ALBUM
-            isSongType -> TopResultType.LAGU
-            !videoId.isNullOrBlank() -> TopResultType.LAGU
-            browseId != null && browseId.startsWith("UC") -> TopResultType.ARTIS
-            else -> TopResultType.LAGU
         }
 
         // Segmen setelah penanda tipe
@@ -1788,7 +1815,10 @@ object YouTubeMusicApi {
 
         return when (topType) {
             TopResultType.ARTIS -> {
-                val effectiveId = browseId ?: findBrowseEndpointWithPrefix(card, "UC") ?: ""
+                val effectiveId = titleBrowseEndpoint?.optString("browseId")?.takeIf { it.isNotBlank() }
+                    ?: cardNavEndpoint?.optJSONObject("browseEndpoint")?.optString("browseId")?.takeIf { it.isNotBlank() }
+                    ?: card.optJSONObject("onTap")?.optJSONObject("browseEndpoint")?.optString("browseId")?.takeIf { it.isNotBlank() }
+                    ?: findBrowseEndpointWithPrefix(card, "UC") ?: ""
                 val listenersText = nonDurationSegments.firstOrNull()?.joinToString("") { it.optString("text") }?.trim().orEmpty()
                 val subtitleText = if (listenersText.isNotBlank()) "Artis • $listenersText" else "Artis"
                 val artist = ArtistSearchResult(
@@ -1796,17 +1826,40 @@ object YouTubeMusicApi {
                     name = title,
                     thumbnailUrl = finalThumbnailUrl
                 )
+
+                // Ekstraksi maksimal 4 lagu populer dari daftar contents kartu
+                val popularSongs = mutableListOf<Song>()
+                val cardContents = card.optJSONArray("contents")
+                if (cardContents != null) {
+                    for (i in 0 until cardContents.length()) {
+                        val item = cardContents.optJSONObject(i)?.optJSONObject("musicResponsiveListItemRenderer") ?: continue
+                        val vId = item.optJSONObject("playlistItemData")?.optString("videoId")?.takeIf { it.isNotBlank() }
+                            ?: findWatchEndpointVideoId(item)
+                        if (!vId.isNullOrBlank()) {
+                            val song = parseSongItem(item, vId)
+                            if (song != null) {
+                                popularSongs.add(song)
+                                if (popularSongs.size >= 4) break
+                            }
+                        }
+                    }
+                }
+
                 TopResult(
                     type = TopResultType.ARTIS,
                     id = effectiveId,
                     title = title,
                     subtitle = subtitleText,
                     thumbnailUrl = finalThumbnailUrl,
-                    artist = artist
+                    artist = artist,
+                    popularSongs = popularSongs
                 )
             }
             TopResultType.ALBUM -> {
-                val effectiveId = browseId ?: findBrowseEndpointWithPrefix(card, "MPRE") ?: ""
+                val effectiveId = titleBrowseEndpoint?.optString("browseId")?.takeIf { it.isNotBlank() }
+                    ?: cardNavEndpoint?.optJSONObject("browseEndpoint")?.optString("browseId")?.takeIf { it.isNotBlank() }
+                    ?: card.optJSONObject("onTap")?.optJSONObject("browseEndpoint")?.optString("browseId")?.takeIf { it.isNotBlank() }
+                    ?: findBrowseEndpointWithPrefix(card, "MPRE") ?: ""
                 val nonDurTexts = nonDurationSegments.map { seg -> seg.joinToString("") { it.optString("text") }.trim() }
                 val artistName = nonDurTexts.firstOrNull().orEmpty()
                 val year = nonDurTexts.getOrNull(1)?.takeIf { it.matches(Regex("""^\d{4}$""")) } ?: ""
@@ -1891,8 +1944,6 @@ object YouTubeMusicApi {
                     thumbnailUrl = finalThumbnailUrl,
                     song = song
                 )
-            }
-        }
     }
 
     private fun extractBrowseIdAndPageType(item: JSONObject): Pair<String?, String?> {

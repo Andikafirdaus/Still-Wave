@@ -54,6 +54,19 @@
 ## Belum Selesai Putaran 3
 - Belum ada.
 
+## Putaran 4: Perbaikan Gabungan
+- [x] Tugas A: Alamat Server Listening Together Ditanam di Kode
+- [x] Tugas B: Tipe Kartu Hasil Teratas dan Bagian Hasil Pencarian
+- [ ] Tugas C: Format Durasi Bertitik di Banyak Tempat
+
+## Keputusan Putaran 4
+- Tugas A: Konstanta `DEFAULT_SERVER_URL` ditanam di `TogetherPreferences.kt`. Pengaturan server di `ListenTogetherSheet.kt` dihapus, hanya menyisakan kolom nama panggilan dan tombol simpan.
+- Tugas B:
+  1. Bukti log dan akar masalah (1) kartu salah tipe: Di `YouTubeMusicApi.kt` fungsi `parseTopResultFromCard`, pemanggilan `findFirstObjectNamed(card, setOf("browseEndpoint"))` menyusuri seluruh pohon JSON kartu dan menemukan `browseEndpoint` artis dari run nama artis di subtitle (`pageType=MUSIC_PAGE_TYPE_ARTIST`). Akibatnya kartu lagu seperti "Blinding Lights" dan "Figure.09" terbaca sebagai ARTIS. Bukti log: run judul memiliki `watchEndpoint`, run pertama subtitle berisi "Video" atau "Lagu", sedangkan `browseEndpoint` dengan pageType ARTIST hanya ada pada run nama artis. Diperbaiki dengan mengikuti aturan prioritas: (a) teks run pertama subtitle ("lagu"/"song"/"video" -> LAGU, "artis"/"artist" -> ARTIS, "album"/"playlist" -> ALBUM), (b) endpoint run JUDUL saja (`watchEndpoint` -> LAGU, pageType `ARTIST` -> ARTIS, `ALBUM` -> ALBUM), (c) `watchEndpoint`/`videoId` pada kartu tanpa tanda ARTIS di judul -> LAGU. Dilarang memeriksa endpoint run selain judul.
+  2. Bukti log dan akar masalah (2) bagian hasil kosong: Di `parseSearchAllFromResponse`, pencarian item sebelumnya hanya mengambil dari `musicShelfRenderer`. Pada respons YouTube Music WEB_REMIX tanpa kategori, item hasil dibungkus di dalam `itemSectionRenderer`, sehingga `musicShelfRenderer` berjumlah 0 dan seluruh hasil kosong. Diperbaiki dengan mengumpulkan semua `musicResponsiveListItemRenderer` dari `rootJson` di luar isi `contents` kartu utama. Pengecualian de-duplikasi `seenVideoIds` pada hasil teratas dihapus agar lagu tetap muncul di bagian "Lagu". Ditambahkan log `"hasil semua lagu=<n> artis=<n> album=<n>"`.
+  3. Jika hasil teratas ARTIS, diekstrak maksimal 4 lagu dari `contents` kartu ke `popularSongs` dan ditampilkan di bagian "Lagu populer" di `SearchScreen.kt` dengan antrean pemutaran berisi keempat lagu.
+
+
 ## Keputusan (Putaran 1)
 - Struktur project sudah lengkap dengan Media3, ExoPlayer, NewPipeExtractor, dan Room terkonfigurasi di `app/build.gradle.kts`.
 - Seluruh pengerjaan akan mengikuti aturan ketat: warna solid tanpa gradien, teks bahasa Indonesia tanpa emoji, log "MusikPlayer" tanpa URL/token/body mentah, defensive parsing.

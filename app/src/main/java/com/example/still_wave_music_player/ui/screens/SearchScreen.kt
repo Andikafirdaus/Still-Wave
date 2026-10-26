@@ -389,6 +389,30 @@ fun SearchScreen(
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                             )
                         }
+
+                        if (top.type == TopResultType.ARTIS && top.popularSongs.isNotEmpty()) {
+                            item(key = "semua_header_lagu_populer") {
+                                Text(
+                                    text = "Lagu populer",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary
+                                    ),
+                                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp)
+                                )
+                            }
+
+                            val popularList = top.popularSongs.take(4)
+                            items(popularList, key = { "populer_${it.id}" }) { popSong ->
+                                TrackRowItem(
+                                    song = popSong,
+                                    onClick = { onPlaySong(popSong, popularList) },
+                                    onMoreClick = { onOpenAddToPlaylist(popSong) },
+                                    modifier = Modifier.padding(horizontal = 16.dp)
+                                )
+                            }
+                        }
                     }
 
                     // 2. Bagian Lagu (maksimal 4 baris + tombol "Lihat semua")
@@ -852,7 +876,7 @@ private fun TopResultCard(
                 .clickable {
                     when (currentTopResult.type) {
                         TopResultType.LAGU -> {
-                            currentTopResult.song?.let { currentPlaySong(it, emptyList()) }
+                            currentTopResult.song?.let { currentPlaySong(it, listOf(it)) }
                         }
                         TopResultType.ARTIS -> {
                             currentNavigateToArtist(currentTopResult.id)
@@ -873,7 +897,7 @@ private fun TopResultCard(
                     thumbnailUrl = topResult.thumbnailUrl,
                     contentDescription = topResult.title,
                     modifier = Modifier.size(76.dp),
-                    shape = if (isArtist) CircleShape else RoundedCornerShape(12.dp)
+                    shape = if (isArtist) CircleShape else RoundedCornerShape(8.dp)
                 )
 
                 Spacer(modifier = Modifier.width(16.dp))
