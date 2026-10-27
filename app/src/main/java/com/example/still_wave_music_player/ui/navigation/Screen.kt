@@ -6,6 +6,7 @@ package com.example.still_wave_music_player.ui.navigation
 sealed class Screen(val route: String, val title: String) {
     data object Beranda : Screen("beranda", "Beranda")
     data object Pustaka : Screen("pustaka", "Pustaka")
+    data object Together : Screen("together", "Bersama") // <-- MENU BARU
     data object Cari    : Screen("cari", "Cari")
 
     data object Artis : Screen("artis/{browseId}", "Artis") {

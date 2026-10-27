@@ -51,6 +51,7 @@ import com.example.still_wave_music_player.ui.screens.LibraryScreen
 import com.example.still_wave_music_player.ui.screens.PlayerScreen
 import com.example.still_wave_music_player.ui.screens.PlaylistScreen
 import com.example.still_wave_music_player.ui.screens.SearchScreen
+import com.example.still_wave_music_player.ui.screens.TogetherScreen // Import layar baru
 import com.example.still_wave_music_player.ui.theme.Background
 import com.example.still_wave_music_player.ui.theme.Motion
 import com.example.still_wave_music_player.viewmodels.LibraryViewModel
@@ -69,9 +70,11 @@ fun AppRoot(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Beranda.route
 
+    // Menambahkan Screen.Together ke daftar tab utama
     val isMainTab = currentRoute in listOf(
         Screen.Beranda.route,
         Screen.Pustaka.route,
+        Screen.Together.route,
         Screen.Cari.route
     )
 
@@ -150,6 +153,7 @@ fun AppRoot(
                     onOpenSettings = { isSettingsOpen = true }
                 )
             }
+
             composable(Screen.Pustaka.route) {
                 LibraryScreen(
                     libraryState = libraryState,
@@ -165,6 +169,12 @@ fun AppRoot(
                     onOpenSettings = { isSettingsOpen = true }
                 )
             }
+
+            // ── LAYAR LISTENING TOGETHER ─────────────────────────────────────
+            composable(Screen.Together.route) {
+                TogetherScreen() // Memanggil layar Together yang baru dibuat
+            }
+
             composable(Screen.Cari.route) {
                 SearchScreen(
                     initialMood = pendingMood,
@@ -179,6 +189,7 @@ fun AppRoot(
                     onOpenAddToPlaylist = { songForOptions = it }
                 )
             }
+
             composable(Screen.Artis.route) { backStackEntry ->
                 val browseId = backStackEntry.arguments?.getString("browseId") ?: return@composable
                 ArtistScreen(
@@ -198,6 +209,7 @@ fun AppRoot(
                     onOpenAddToPlaylist = { songForOptions = it }
                 )
             }
+
             composable(Screen.Album.route) { backStackEntry ->
                 val browseId = backStackEntry.arguments?.getString("browseId") ?: return@composable
                 AlbumScreen(
@@ -216,6 +228,7 @@ fun AppRoot(
                     onOpenAddToPlaylist = { songForOptions = it }
                 )
             }
+
             composable(Screen.DaftarPutar.route) { backStackEntry ->
                 val idStr = backStackEntry.arguments?.getString("id")
                 val playlistId = idStr?.toLongOrNull() ?: return@composable
@@ -324,7 +337,6 @@ fun AppRoot(
             )
         }
 
-        // ── Bottom Sheet Opsi Lagu (BARU) ───────────────────────────────────
         songForOptions?.let { targetSong ->
             SongOptionsSheet(
                 song = targetSong,
@@ -345,7 +357,6 @@ fun AppRoot(
             )
         }
 
-        // ── Bottom Sheet Tambah ke Daftar Putar ─────────────────────────────
         songForAddToPlaylist?.let { targetSong ->
             AddToPlaylistSheet(
                 song = targetSong,

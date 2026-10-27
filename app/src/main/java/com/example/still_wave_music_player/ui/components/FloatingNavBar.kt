@@ -43,7 +43,7 @@ import com.example.still_wave_music_player.ui.theme.TextSecondary
 
 /**
  * Bar navigasi bawah melayang bergaya "liquid glass".
- * Struktur: Kapsul (Beranda, Pustaka) + Tombol Bulat (Cari).
+ * Struktur: Kapsul (Beranda, Pustaka, Bersama) + Tombol Bulat (Cari).
  */
 @Composable
 fun FloatingNavBar(
@@ -53,7 +53,8 @@ fun FloatingNavBar(
 ) {
     val capsuleTabs = listOf(
         Pair(Screen.Beranda, AppIcons.Home),
-        Pair(Screen.Pustaka, AppIcons.Library)
+        Pair(Screen.Pustaka, AppIcons.Library),
+        Pair(Screen.Together, AppIcons.Group) // Tab Baru
     )
 
     Row(
@@ -62,7 +63,7 @@ fun FloatingNavBar(
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // ── Kapsul Navigasi Utama (Beranda, Pustaka) ───────────────
+        // ── Kapsul Navigasi Utama (Beranda, Pustaka, Bersama) ───────────────
         FloatingGlass(
             modifier = Modifier
                 .weight(1f)
@@ -70,13 +71,15 @@ fun FloatingNavBar(
             shape = RoundedCornerShape(28.dp)
         ) {
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                val tabWidth = maxWidth / 2
+                // Karena sekarang ada 3 tab, lebar dibagi 3
+                val tabWidth = maxWidth / 3
                 val pillHeight = 44.dp
                 val pillWidth = (tabWidth - 12.dp).coerceAtLeast(44.dp)
 
                 val selectedIndex = when (currentRoute) {
                     Screen.Beranda.route -> 0
                     Screen.Pustaka.route -> 1
+                    Screen.Together.route -> 2
                     else -> -1
                 }
 
