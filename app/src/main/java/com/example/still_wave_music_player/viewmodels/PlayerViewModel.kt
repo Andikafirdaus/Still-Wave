@@ -95,6 +95,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setAutoRadioEnabled(enabled: Boolean) {
         settingsRepository.setAutoRadioEnabled(enabled)
+
+
     }
 
     fun setCrossfadeSeconds(seconds: Int) {
@@ -722,6 +724,61 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     /**
      * Mengganti mode pengulangan lagu secara bergantian (mati -> semua -> satu lagu -> mati).
      */
+
+    /**
+     * Menyisipkan lagu di urutan ke-2 antrean (Putar Berikutnya).
+     */
+    fun putarBerikutnya(song: Song) {
+        withController { controller ->
+            var insertIndex = (controller.currentMediaItemIndex + 1).coerceAtMost(controller.mediaItemCount)
+
+            val existingIndex = _uiState.value.queue.indexOfFirst {
+                it.id == song.id || (!song.videoId.isNullOrBlank() && it.videoId == song.videoId)
+            }
+
+            val newQueue = _uiState.value.queue.toMutableList()
+
+            if (existingIndex != -1) {
+                if (existingIndex < insertIndex) {
+                    insertIndex--
+                }
+                if (existingIndex < controller.mediaItemCount) {
+                    controller.removeMediaItem(existingIndex)
+                }
+                newQueue.removeAt(existingIndex)
+            }
+
+            val newMediaItem = createMediaItem(song)
+            controller.addMediaItem(insertIndex, newMediaItem)
+            newQueue.add(insertIndex, song)
+
+            _uiState.update { it.copy(queue = newQueue) }
+            android.widget.Toast.makeText(getApplication(), "Diputar berikutnya", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * Menambahkan lagu ke urutan paling akhir antrean.
+     */
+    fun tambahKeAntrean(song: Song) {
+        withController { controller ->
+            val existingIndex = _uiState.value.queue.indexOfFirst {
+                it.id == song.id || (!song.videoId.isNullOrBlank() && it.videoId == song.videoId)
+            }
+            if (existingIndex != -1) {
+                android.widget.Toast.makeText(getApplication(), "Lagu sudah ada di antrean", android.widget.Toast.LENGTH_SHORT).show()
+                return@withController
+            }
+
+            val newMediaItem = createMediaItem(song)
+            controller.addMediaItem(newMediaItem)
+
+            _uiState.update { it.copy(queue = it.queue + song) }
+            android.widget.Toast.makeText(getApplication(), "Ditambahkan ke antrean", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+
     fun gantiModeUlang() {
         withController { controller ->
             val nextPlayerMode = when (controller.repeatMode) {

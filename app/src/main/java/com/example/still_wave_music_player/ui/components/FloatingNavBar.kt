@@ -42,11 +42,8 @@ import com.example.still_wave_music_player.ui.theme.TextPrimary
 import com.example.still_wave_music_player.ui.theme.TextSecondary
 
 /**
- * Bar navigasi bawah melayang bergaya "liquid glass" (mirip bilah Instagram di iOS).
- *
- * Struktur:
- * 1. Kapsul melayang berisi 3 tab (Beranda, Jelajah, Pustaka) dengan indikator pil bergeser.
- * 2. Tombol bulat terpisah berjarak 12dp untuk tab Cari.
+ * Bar navigasi bawah melayang bergaya "liquid glass".
+ * Struktur: Kapsul (Beranda, Pustaka) + Tombol Bulat (Cari).
  */
 @Composable
 fun FloatingNavBar(
@@ -56,7 +53,6 @@ fun FloatingNavBar(
 ) {
     val capsuleTabs = listOf(
         Pair(Screen.Beranda, AppIcons.Home),
-        Pair(Screen.Jelajah, AppIcons.Explore),
         Pair(Screen.Pustaka, AppIcons.Library)
     )
 
@@ -66,7 +62,7 @@ fun FloatingNavBar(
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // ── Kapsul Navigasi Utama (Beranda, Jelajah, Pustaka) ───────────────
+        // ── Kapsul Navigasi Utama (Beranda, Pustaka) ───────────────
         FloatingGlass(
             modifier = Modifier
                 .weight(1f)
@@ -74,18 +70,17 @@ fun FloatingNavBar(
             shape = RoundedCornerShape(28.dp)
         ) {
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                val tabWidth = maxWidth / 3
+                val tabWidth = maxWidth / 2
                 val pillHeight = 44.dp
                 val pillWidth = (tabWidth - 12.dp).coerceAtLeast(44.dp)
 
                 val selectedIndex = when (currentRoute) {
                     Screen.Beranda.route -> 0
-                    Screen.Jelajah.route -> 1
-                    Screen.Pustaka.route -> 2
+                    Screen.Pustaka.route -> 1
                     else -> -1
                 }
 
-                // Pil penanda aktif yang bergeser mulus menggunakan spring fisika
+                // Pil penanda aktif
                 if (selectedIndex >= 0) {
                     val animatedIndex by animateFloatAsState(
                         targetValue = selectedIndex.toFloat(),
@@ -106,7 +101,7 @@ fun FloatingNavBar(
                     )
                 }
 
-                // Baris ikon 3 tab
+                // Baris ikon
                 Row(
                     modifier = Modifier.fillMaxSize(),
                     verticalAlignment = Alignment.CenterVertically
@@ -160,10 +155,6 @@ fun FloatingNavBar(
     }
 }
 
-/**
- * Tombol ikon tab dengan animasi spring saat ditekan (scale bounce).
- * Memiliki area sentuh minimal 48dp untuk aksesibilitas.
- */
 @Composable
 private fun BouncyTabButton(
     icon: ImageVector,
@@ -198,9 +189,7 @@ private fun BouncyTabButton(
                         tryAwaitRelease()
                         isPressed = false
                     },
-                    onTap = {
-                        onClick()
-                    }
+                    onTap = { onClick() }
                 )
             },
         contentAlignment = Alignment.Center

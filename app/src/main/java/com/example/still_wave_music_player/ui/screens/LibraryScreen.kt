@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -39,11 +40,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,6 +56,7 @@ import com.example.still_wave_music_player.data.model.Song
 import com.example.still_wave_music_player.ui.components.AlbumArt
 import com.example.still_wave_music_player.ui.components.AppIcons
 import com.example.still_wave_music_player.ui.components.LibraryStateView
+import com.example.still_wave_music_player.ui.components.SearchBarField
 import com.example.still_wave_music_player.ui.theme.Accent
 import com.example.still_wave_music_player.ui.theme.Background
 import com.example.still_wave_music_player.ui.theme.Border
@@ -64,6 +68,7 @@ import com.example.still_wave_music_player.ui.theme.TextSecondary
 import com.example.still_wave_music_player.viewmodels.LibraryUiState
 import com.example.still_wave_music_player.viewmodels.PlayerViewModel
 import com.example.still_wave_music_player.viewmodels.PlaylistViewModel
+import java.util.Locale
 
 /**
  * Layar Pustaka:
@@ -72,6 +77,7 @@ import com.example.still_wave_music_player.viewmodels.PlaylistViewModel
  * - Tab "Favorit": daftar lagu favorit dengan tombol Putar dan Acak
  * - Tab "Daftar putar": daftar Room Playlist dengan aksi buat, ubah nama, hapus, dan klik membuka PlaylistScreen
  * - Tab "Riwayat": daftar riwayat pemutaran
+ * - Kolom pencarian menyaring isi tab aktif (judul/artis untuk lagu, nama untuk daftar putar).
  */
 @Composable
 fun LibraryScreen(
@@ -86,9 +92,16 @@ fun LibraryScreen(
     onOpenSettings: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val filterOptions = listOf("Di HP", "Favorit", "Daftar putar", "Riwayat")
     var selectedFilter by remember { mutableStateOf("Di HP") }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+
+    // Kueri yang sudah di-trim untuk ditampilkan di pesan "Tidak ada hasil untuk '<kueri>'".
+    val displayQuery = remember(searchQuery) { searchQuery.trim() }
+    // Kueri ter-normalisasi untuk perbandingan (huruf kecil, tanpa spasi berlebih).
+    val normalizedQuery = remember(displayQuery) { displayQuery.lowercase(Locale.ROOT) }
 
     // Ambil data Room via Flow
     val playlists by playlistViewModel.playlists.collectAsState(initial = emptyList())
@@ -134,6 +147,18 @@ fun LibraryScreen(
             }
         }
 
+        // ── Kolom Pencarian ────────────────────────────────────────────────────
+        SearchBarField(
+            query = searchQuery,
+            onQueryChange = { searchQuery = it },
+            onSearch = { keyboardController?.hide() },
+            modifier = Modifier.padding(horizontal = 16.dp),
+            showClearButton = true,
+            onClear = { searchQuery = "" }
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
         // ── Chip Tab (4 Tab Gulir Mendatar) ─────────────────────────────────────
         LazyRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
@@ -145,7 +170,12 @@ fun LibraryScreen(
                 FilterChipItem(
                     label = filter,
                     isSelected = isSelected,
-                    onClick = { selectedFilter = filter }
+                    onClick = {
+                        // Ganti tab sekaligus kosongkan kueri (bukan LaunchedEffect, agar tidak
+                        // ikut menghapus saat komposisi awal / rotasi).
+                        selectedFilter = filter
+                        searchQuery = ""
+                    }
                 )
             }
         }
@@ -158,7 +188,9 @@ fun LibraryScreen(
                 onPermissionGranted = onPermissionGranted,
                 onPlaySong = onPlaySong,
                 onOpenAddToPlaylist = onOpenAddToPlaylist,
-                bottomInset = bottomInset.value
+                bottomInset = bottomInset.value,
+                normalizedQuery = normalizedQuery,
+                displayQuery = displayQuery
             )
 
             "Favorit" -> FavoritesTab(
@@ -166,7 +198,9 @@ fun LibraryScreen(
                 onPlaySong = onPlaySong,
                 onRemoveFavorite = { playerViewModel.toggleFavorite(it) },
                 onOpenAddToPlaylist = onOpenAddToPlaylist,
-                bottomInset = bottomInset.value
+                bottomInset = bottomInset.value,
+                normalizedQuery = normalizedQuery,
+                displayQuery = displayQuery
             )
 
             "Daftar putar" -> PlaylistTab(
@@ -176,14 +210,18 @@ fun LibraryScreen(
                 onCreateNew = { showCreateDialog = true },
                 onRename = { showRenameDialog = it },
                 onDelete = { showDeleteDialog = it },
-                bottomInset = bottomInset.value
+                bottomInset = bottomInset.value,
+                normalizedQuery = normalizedQuery,
+                displayQuery = displayQuery
             )
 
             "Riwayat" -> HistoryTab(
                 songs = history,
                 onPlaySong = onPlaySong,
                 onOpenAddToPlaylist = onOpenAddToPlaylist,
-                bottomInset = bottomInset.value
+                bottomInset = bottomInset.value,
+                normalizedQuery = normalizedQuery,
+                displayQuery = displayQuery
             )
         }
     }
@@ -339,7 +377,9 @@ private fun LocalDeviceTab(
     onPermissionGranted: () -> Unit,
     onPlaySong: (Song, List<Song>) -> Unit,
     onOpenAddToPlaylist: (Song) -> Unit,
-    bottomInset: Float
+    bottomInset: Float,
+    normalizedQuery: String,
+    displayQuery: String
 ) {
     val context = LocalContext.current
 
@@ -350,34 +390,55 @@ private fun LocalDeviceTab(
                 filterAvailableSongs(context, allSongs)
             }
 
-            if (availableSongs.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Tidak ada lagu di penyimpanan perangkat",
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontSize = 15.sp,
-                            color = TextSecondary
-                        )
-                    )
+            // Penyaringan di memori: hanya jalan saat daftar atau kueri berubah (bukan tiap recompose).
+            val displayedSongs = remember(availableSongs, normalizedQuery) {
+                if (normalizedQuery.isEmpty()) {
+                    availableSongs
+                } else {
+                    availableSongs.filter { song ->
+                        val title = song.title.trim().lowercase(Locale.ROOT)
+                        val artist = song.artist.trim().lowercase(Locale.ROOT)
+                        title.contains(normalizedQuery) || artist.contains(normalizedQuery)
+                    }
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        start = 16.dp, end = 16.dp,
-                        bottom = (148 + bottomInset).dp
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    items(availableSongs, key = { it.id }) { song ->
-                        TrackRowItem(
-                            song = song,
-                            onClick = { onPlaySong(song, availableSongs) },
-                            onMoreClick = { onOpenAddToPlaylist(song) }
+            }
+
+            when {
+                availableSongs.isEmpty() -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Tidak ada lagu di penyimpanan perangkat",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = 15.sp,
+                                color = TextSecondary
+                            )
                         )
+                    }
+                }
+
+                normalizedQuery.isNotEmpty() && displayedSongs.isEmpty() -> {
+                    NoSearchResults(query = displayQuery)
+                }
+
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = 16.dp, end = 16.dp,
+                            bottom = (148 + bottomInset).dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(displayedSongs, key = { it.id }) { song ->
+                            TrackRowItem(
+                                song = song,
+                                onClick = { onPlaySong(song, displayedSongs) },
+                                onMoreClick = { onOpenAddToPlaylist(song) }
+                            )
+                        }
                     }
                 }
             }
@@ -409,108 +470,130 @@ private fun FavoritesTab(
     onPlaySong: (Song, List<Song>) -> Unit,
     onRemoveFavorite: (Song) -> Unit,
     onOpenAddToPlaylist: (Song) -> Unit,
-    bottomInset: Float
+    bottomInset: Float,
+    normalizedQuery: String,
+    displayQuery: String
 ) {
-    if (songs.isEmpty()) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "Belum ada favorit",
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 15.sp,
-                    color = TextSecondary
-                )
-            )
+    val displayedSongs = remember(songs, normalizedQuery) {
+        if (normalizedQuery.isEmpty()) {
+            songs
+        } else {
+            songs.filter { song ->
+                val title = song.title.trim().lowercase(Locale.ROOT)
+                val artist = song.artist.trim().lowercase(Locale.ROOT)
+                title.contains(normalizedQuery) || artist.contains(normalizedQuery)
+            }
         }
-    } else {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = 16.dp, end = 16.dp,
-                bottom = (148 + bottomInset).dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            // Tombol Putar & Acak
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // Tombol Putar
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Accent)
-                            .clickable {
-                                songs.firstOrNull()?.let { first ->
-                                    onPlaySong(first, songs)
-                                }
-                            }
-                            .padding(vertical = 12.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = AppIcons.Play,
-                            contentDescription = "Putar",
-                            tint = TextPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Putar",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                    }
+    }
 
-                    // Tombol Acak
+    when {
+        songs.isEmpty() -> {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Belum ada favorit",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 15.sp,
+                        color = TextSecondary
+                    )
+                )
+            }
+        }
+
+        normalizedQuery.isNotEmpty() && displayedSongs.isEmpty() -> {
+            NoSearchResults(query = displayQuery)
+        }
+
+        else -> {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = 16.dp, end = 16.dp,
+                    bottom = (148 + bottomInset).dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Tombol Putar & Acak (memakai hasil filter yang sedang tampil)
+                item {
                     Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(SurfaceHigh)
-                            .clickable {
-                                val shuffled = songs.shuffled()
-                                shuffled.firstOrNull()?.let { first ->
-                                    onPlaySong(first, shuffled)
-                                }
-                            }
-                            .padding(vertical = 12.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(
-                            imageVector = AppIcons.Shuffle,
-                            contentDescription = "Acak",
-                            tint = TextPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Acak",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
+                        // Tombol Putar
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Accent)
+                                .clickable {
+                                    displayedSongs.firstOrNull()?.let { first ->
+                                        onPlaySong(first, displayedSongs)
+                                    }
+                                }
+                                .padding(vertical = 12.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = AppIcons.Play,
+                                contentDescription = "Putar",
+                                tint = TextPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Putar",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        }
+
+                        // Tombol Acak
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(SurfaceHigh)
+                                .clickable {
+                                    val shuffled = displayedSongs.shuffled()
+                                    shuffled.firstOrNull()?.let { first ->
+                                        onPlaySong(first, shuffled)
+                                    }
+                                }
+                                .padding(vertical = 12.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = AppIcons.Shuffle,
+                                contentDescription = "Acak",
+                                tint = TextPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Acak",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        }
                     }
                 }
-            }
 
-            items(songs, key = { it.id }) { song ->
-                FavoriteSongRow(
-                    song = song,
-                    onClick = { onPlaySong(song, songs) },
-                    onRemove = { onRemoveFavorite(song) },
-                    onOpenAddToPlaylist = { onOpenAddToPlaylist(song) }
-                )
+                items(displayedSongs, key = { it.id }) { song ->
+                    FavoriteSongRow(
+                        song = song,
+                        onClick = { onPlaySong(song, displayedSongs) },
+                        onRemove = { onRemoveFavorite(song) },
+                        onOpenAddToPlaylist = { onOpenAddToPlaylist(song) }
+                    )
+                }
             }
         }
     }
@@ -598,8 +681,20 @@ private fun PlaylistTab(
     onCreateNew: () -> Unit,
     onRename: (Playlist) -> Unit,
     onDelete: (Playlist) -> Unit,
-    bottomInset: Float
+    bottomInset: Float,
+    normalizedQuery: String,
+    displayQuery: String
 ) {
+    val displayedPlaylists = remember(playlists, normalizedQuery) {
+        if (normalizedQuery.isEmpty()) {
+            playlists
+        } else {
+            playlists.filter { playlist ->
+                playlist.name.trim().lowercase(Locale.ROOT).contains(normalizedQuery)
+            }
+        }
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -608,7 +703,7 @@ private fun PlaylistTab(
         ),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Tombol buat daftar putar baru
+        // Tombol buat daftar putar baru (selalu tampil, bukan bagian dari penyaringan)
         item {
             Row(
                 modifier = Modifier
@@ -645,32 +740,55 @@ private fun PlaylistTab(
             }
         }
 
-        if (playlists.isEmpty()) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 48.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Belum ada daftar putar",
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontSize = 15.sp,
-                            color = TextSecondary
+        when {
+            playlists.isEmpty() -> {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 48.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Belum ada daftar putar",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = 15.sp,
+                                color = TextSecondary
+                            )
                         )
-                    )
+                    }
                 }
             }
-        } else {
-            items(playlists, key = { it.id }) { playlist ->
-                PlaylistRowItem(
-                    playlist = playlist,
-                    playlistViewModel = playlistViewModel,
-                    onClick = { onNavigateToPlaylist(playlist.id) },
-                    onRename = { onRename(playlist) },
-                    onDelete = { onDelete(playlist) }
-                )
+
+            normalizedQuery.isNotEmpty() && displayedPlaylists.isEmpty() -> {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 48.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Tidak ada hasil untuk '$displayQuery'",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = 15.sp,
+                                color = TextSecondary
+                            )
+                        )
+                    }
+                }
+            }
+
+            else -> {
+                items(displayedPlaylists, key = { it.id }) { playlist ->
+                    PlaylistRowItem(
+                        playlist = playlist,
+                        playlistViewModel = playlistViewModel,
+                        onClick = { onNavigateToPlaylist(playlist.id) },
+                        onRename = { onRename(playlist) },
+                        onDelete = { onDelete(playlist) }
+                    )
+                }
             }
         }
     }
@@ -773,37 +891,62 @@ private fun HistoryTab(
     songs: List<Song>,
     onPlaySong: (Song, List<Song>) -> Unit,
     onOpenAddToPlaylist: (Song) -> Unit,
-    bottomInset: Float
+    bottomInset: Float,
+    normalizedQuery: String,
+    displayQuery: String
 ) {
-    if (songs.isEmpty()) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "Belum ada riwayat pemutaran",
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 15.sp,
-                    color = TextSecondary
-                )
-            )
+    val displayedSongs = remember(songs, normalizedQuery) {
+        if (normalizedQuery.isEmpty()) {
+            songs
+        } else {
+            songs.filter { song ->
+                val title = song.title.trim().lowercase(Locale.ROOT)
+                val artist = song.artist.trim().lowercase(Locale.ROOT)
+                title.contains(normalizedQuery) || artist.contains(normalizedQuery)
+            }
         }
-    } else {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = 16.dp, end = 16.dp,
-                bottom = (148 + bottomInset).dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            items(songs, key = { it.id + it.hashCode() }) { song ->
-                TrackRowItem(
-                    song = song,
-                    onClick = { onPlaySong(song, songs) },
-                    onMoreClick = { onOpenAddToPlaylist(song) },
-                    modifier = Modifier
+    }
+
+    when {
+        songs.isEmpty() -> {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Belum ada riwayat pemutaran",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 15.sp,
+                        color = TextSecondary
+                    )
                 )
+            }
+        }
+
+        normalizedQuery.isNotEmpty() && displayedSongs.isEmpty() -> {
+            NoSearchResults(query = displayQuery)
+        }
+
+        else -> {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = 16.dp, end = 16.dp,
+                    bottom = (148 + bottomInset).dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Menggunakan itemsIndexed: id Song dari riwayat bisa duplikat bila lagu
+                // yang sama diputar lebih dari sekali, sehingga key berbasis id tidak aman.
+                // Indeks posisi stabil karena SQL mengurutkan playedAt DESC.
+                itemsIndexed(displayedSongs) { _, song ->
+                    TrackRowItem(
+                        song = song,
+                        onClick = { onPlaySong(song, displayedSongs) },
+                        onMoreClick = { onOpenAddToPlaylist(song) },
+                        modifier = Modifier
+                    )
+                }
             }
         }
     }
@@ -844,6 +987,26 @@ private fun FilterChipItem(
                 fontSize = 12.sp,
                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                 color = textColor
+            )
+        )
+    }
+}
+
+/**
+ * Pesan kosong saat penyaringan tidak menghasilkan apa-apa.
+ * Memakai Box agar bisa dipakai di layar penuh maupun di dalam LazyColumn.
+ */
+@Composable
+private fun NoSearchResults(query: String) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "Tidak ada hasil untuk '$query'",
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 15.sp,
+                color = TextSecondary
             )
         )
     }

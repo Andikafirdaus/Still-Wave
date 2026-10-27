@@ -42,10 +42,10 @@ import com.example.still_wave_music_player.ui.components.AddToPlaylistSheet
 import com.example.still_wave_music_player.ui.components.FloatingNavBar
 import com.example.still_wave_music_player.ui.components.MiniPlayer
 import com.example.still_wave_music_player.ui.components.SettingsSheet
+import com.example.still_wave_music_player.ui.components.SongOptionsSheet
 import com.example.still_wave_music_player.ui.navigation.Screen
 import com.example.still_wave_music_player.ui.screens.AlbumScreen
 import com.example.still_wave_music_player.ui.screens.ArtistScreen
-import com.example.still_wave_music_player.ui.screens.ExploreScreen
 import com.example.still_wave_music_player.ui.screens.HomeScreen
 import com.example.still_wave_music_player.ui.screens.LibraryScreen
 import com.example.still_wave_music_player.ui.screens.PlayerScreen
@@ -58,13 +58,6 @@ import com.example.still_wave_music_player.viewmodels.PlayerViewModel
 import com.example.still_wave_music_player.viewmodels.PlaylistViewModel
 import com.example.still_wave_music_player.viewmodels.QueueSource
 
-/**
- * Root composable aplikasi (AppRoot).
- * Berisi NavHost dengan rute utama dan rute rincian (Artis, Album), FloatingNavBar melayang di bagian bawah,
- * MiniPlayer di atas FloatingNavBar, dan PlayerScreen sebagai lapisan penuh di atasnya.
- * Menyediakan satu instance LibraryViewModel dan PlayerViewModel yang dibagikan ke semua layar,
- * serta meminta izin POST_NOTIFICATIONS pada Android 13+ saat pertama kali memutar lagu.
- */
 @Composable
 fun AppRoot(
     playerViewModel: PlayerViewModel = viewModel(),
@@ -78,7 +71,6 @@ fun AppRoot(
 
     val isMainTab = currentRoute in listOf(
         Screen.Beranda.route,
-        Screen.Jelajah.route,
         Screen.Pustaka.route,
         Screen.Cari.route
     )
@@ -89,10 +81,9 @@ fun AppRoot(
     val crossfadeSeconds by playerViewModel.crossfadeSeconds.collectAsStateWithLifecycle()
     val libraryState by libraryViewModel.uiState.collectAsStateWithLifecycle()
     val isFavorite by playerViewModel.isFavorite(
-        playerState.currentSong ?: com.example.still_wave_music_player.data.model.Song(
-            id = "", title = "", artist = ""
-        )
+        playerState.currentSong ?: Song(id = "", title = "", artist = "")
     ).collectAsStateWithLifecycle(initialValue = false)
+
     val rawRecentHistory by playerViewModel.historyRepository.getRecent(50)
         .collectAsStateWithLifecycle(initialValue = emptyList())
     val recentlyPlayed = remember(rawRecentHistory) {
@@ -101,16 +92,15 @@ fun AppRoot(
 
     var isPlayerOpen by rememberSaveable { mutableStateOf(false) }
     var isSettingsOpen by rememberSaveable { mutableStateOf(false) }
+    var songForOptions by remember { mutableStateOf<Song?>(null) }
     var songForAddToPlaylist by remember { mutableStateOf<Song?>(null) }
+    var pendingMood by remember { mutableStateOf<String?>(null) }
 
-    // State dan launcher untuk izin POST_NOTIFICATIONS (Android 13+)
     var hasRequestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
-    ) { _ ->
-        // Pemutaran tetap berjalan lancar sekalipun izin notifikasi ditolak
-    }
+    ) { _ -> }
 
     val requestNotificationPermissionIfNeeded: () -> Unit = {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasRequestedNotificationPermission) {
@@ -130,60 +120,34 @@ fun AppRoot(
         playerViewModel.putar(song, list)
     }
 
-    var pendingMood by remember { mutableStateOf<String?>(null) }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Background)
     ) {
-        // ── 1. NavHost: Konten Utama yang Dapat Digulir ────────────────────────
         NavHost(
             navController = navController,
             startDestination = Screen.Beranda.route,
-            enterTransition = {
-                fadeIn(animationSpec = tween(180)) +
-                    scaleIn(initialScale = 0.98f, animationSpec = tween(180))
-            },
-            exitTransition = {
-                fadeOut(animationSpec = tween(180))
-            },
-            popEnterTransition = {
-                fadeIn(animationSpec = tween(180)) +
-                    scaleIn(initialScale = 0.98f, animationSpec = tween(180))
-            },
-            popExitTransition = {
-                fadeOut(animationSpec = tween(180))
-            },
+            enterTransition = { fadeIn(animationSpec = tween(180)) + scaleIn(initialScale = 0.98f, animationSpec = tween(180)) },
+            exitTransition = { fadeOut(animationSpec = tween(180)) },
+            popEnterTransition = { fadeIn(animationSpec = tween(180)) + scaleIn(initialScale = 0.98f, animationSpec = tween(180)) },
+            popExitTransition = { fadeOut(animationSpec = tween(180)) },
             modifier = Modifier.fillMaxSize()
         ) {
             composable(Screen.Beranda.route) {
                 HomeScreen(
-                    libraryState = libraryState,
-                    requiredPermission = libraryViewModel.getRequiredPermission(),
-                    onPermissionGranted = libraryViewModel::muat,
                     recentlyPlayed = recentlyPlayed,
                     onPlaySong = handlePlaySong,
-                    onOpenAddToPlaylist = { songForAddToPlaylist = it },
+                    onOpenAddToPlaylist = { songForOptions = it },
                     onSelectMood = { mood ->
                         pendingMood = mood
-                        navController.navigate(Screen.Jelajah.route)
-                    },
-                    onOpenSettings = { isSettingsOpen = true }
-                )
-            }
-            composable(Screen.Jelajah.route) {
-                ExploreScreen(
-                    initialMood = pendingMood,
-                    onMoodConsumed = { pendingMood = null },
-                    onPlaySong = handlePlaySong,
-                    onPlayAll = { songs ->
-                        if (songs.isNotEmpty()) {
-                            requestNotificationPermissionIfNeeded()
-                            playerViewModel.putar(songs.first(), songs, QueueSource.SINGLE_ONLINE)
+                        navController.navigate(Screen.Cari.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
                         }
                     },
-                    onOpenAddToPlaylist = { songForAddToPlaylist = it }
+                    onOpenSettings = { isSettingsOpen = true }
                 )
             }
             composable(Screen.Pustaka.route) {
@@ -197,15 +161,14 @@ fun AppRoot(
                     onNavigateToPlaylist = { playlistId ->
                         navController.navigate(Screen.DaftarPutar.createRoute(playlistId))
                     },
-                    onOpenAddToPlaylist = { songForAddToPlaylist = it },
+                    onOpenAddToPlaylist = { songForOptions = it },
                     onOpenSettings = { isSettingsOpen = true }
                 )
             }
             composable(Screen.Cari.route) {
                 SearchScreen(
-                    libraryState = libraryState,
-                    requiredPermission = libraryViewModel.getRequiredPermission(),
-                    onPermissionGranted = libraryViewModel::muat,
+                    initialMood = pendingMood,
+                    onMoodConsumed = { pendingMood = null },
                     onPlaySong = handlePlaySong,
                     onNavigateToArtist = { browseId ->
                         navController.navigate(Screen.Artis.createRoute(browseId))
@@ -213,7 +176,7 @@ fun AppRoot(
                     onNavigateToAlbum = { browseId ->
                         navController.navigate(Screen.Album.createRoute(browseId))
                     },
-                    onOpenAddToPlaylist = { songForAddToPlaylist = it }
+                    onOpenAddToPlaylist = { songForOptions = it }
                 )
             }
             composable(Screen.Artis.route) { backStackEntry ->
@@ -232,7 +195,7 @@ fun AppRoot(
                     onNavigateToAlbum = { albumBrowseId ->
                         navController.navigate(Screen.Album.createRoute(albumBrowseId))
                     },
-                    onOpenAddToPlaylist = { songForAddToPlaylist = it }
+                    onOpenAddToPlaylist = { songForOptions = it }
                 )
             }
             composable(Screen.Album.route) { backStackEntry ->
@@ -250,7 +213,7 @@ fun AppRoot(
                     onNavigateToArtist = { artistBrowseId ->
                         navController.navigate(Screen.Artis.createRoute(artistBrowseId))
                     },
-                    onOpenAddToPlaylist = { songForAddToPlaylist = it }
+                    onOpenAddToPlaylist = { songForOptions = it }
                 )
             }
             composable(Screen.DaftarPutar.route) { backStackEntry ->
@@ -264,12 +227,11 @@ fun AppRoot(
                         requestNotificationPermissionIfNeeded()
                         playerViewModel.putar(song, list, QueueSource.LIST)
                     },
-                    onOpenAddToPlaylist = { songForAddToPlaylist = it }
+                    onOpenAddToPlaylist = { songForOptions = it }
                 )
             }
         }
 
-        // ── 2. Mini Player Melayang (di atas bar navigasi bila bar tampil) ───────
         MiniPlayer(
             song = playerState.currentSong,
             isPlaying = playerState.isPlaying,
@@ -286,16 +248,13 @@ fun AppRoot(
                 .padding(bottom = if (isMainTab) 84.dp else 12.dp)
         )
 
-        // ── 3. Bar Navigasi Bawah Melayang (FloatingNavBar) ───────────────────
         if (isMainTab) {
             FloatingNavBar(
                 currentRoute = currentRoute,
                 onNavigateToTab = { screen ->
                     if (currentRoute != screen.route) {
                         navController.navigate(screen.route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
                         }
@@ -308,33 +267,10 @@ fun AppRoot(
             )
         }
 
-        // ── 4. Layar Pemutar Penuh (PlayerScreen) sebagai Lapisan di Atas ──────
         AnimatedVisibility(
             visible = isPlayerOpen && playerState.currentSong != null,
-            enter = slideInVertically(
-                animationSpec = spring(
-                    dampingRatio = Motion.Gentle.dampingRatio,
-                    stiffness = Motion.Gentle.stiffness
-                ),
-                initialOffsetY = { it }
-            ) + fadeIn(
-                animationSpec = spring(
-                    dampingRatio = Motion.Gentle.dampingRatio,
-                    stiffness = Motion.Gentle.stiffness
-                )
-            ),
-            exit = slideOutVertically(
-                animationSpec = spring(
-                    dampingRatio = Motion.Gentle.dampingRatio,
-                    stiffness = Motion.Gentle.stiffness
-                ),
-                targetOffsetY = { it }
-            ) + fadeOut(
-                animationSpec = spring(
-                    dampingRatio = Motion.Gentle.dampingRatio,
-                    stiffness = Motion.Gentle.stiffness
-                )
-            )
+            enter = slideInVertically(animationSpec = spring(dampingRatio = Motion.Gentle.dampingRatio, stiffness = Motion.Gentle.stiffness), initialOffsetY = { it }) + fadeIn(animationSpec = spring(dampingRatio = Motion.Gentle.dampingRatio, stiffness = Motion.Gentle.stiffness)),
+            exit = slideOutVertically(animationSpec = spring(dampingRatio = Motion.Gentle.dampingRatio, stiffness = Motion.Gentle.stiffness), targetOffsetY = { it }) + fadeOut(animationSpec = spring(dampingRatio = Motion.Gentle.dampingRatio, stiffness = Motion.Gentle.stiffness))
         ) {
             val song = playerState.currentSong
             if (song != null) {
@@ -365,7 +301,7 @@ fun AppRoot(
                     onJumpToQueue = playerViewModel::lompatKeAntrean,
                     onRemoveFromQueue = playerViewModel::hapusDariAntrean,
                     onClearQueue = playerViewModel::bersihkanAntrean,
-                    onOpenAddToPlaylist = { songForAddToPlaylist = song },
+                    onOpenAddToPlaylist = { songForOptions = song },
                     onNavigateToArtist = { browseId ->
                         isPlayerOpen = false
                         navController.navigate(Screen.Artis.createRoute(browseId))
@@ -378,7 +314,6 @@ fun AppRoot(
             }
         }
 
-        // ── 5. Bottom Sheet Pengaturan ───────────────────────────────────────
         if (isSettingsOpen) {
             SettingsSheet(
                 isAutoRadioEnabled = isAutoRadioEnabled,
@@ -389,7 +324,28 @@ fun AppRoot(
             )
         }
 
-        // ── 6. Bottom Sheet Tambah ke Daftar Putar ────────────────────────────
+        // ── Bottom Sheet Opsi Lagu (BARU) ───────────────────────────────────
+        songForOptions?.let { targetSong ->
+            SongOptionsSheet(
+                song = targetSong,
+                playerViewModel = playerViewModel,
+                onDismissRequest = { songForOptions = null },
+                onAddToPlaylistClick = { song ->
+                    songForOptions = null
+                    songForAddToPlaylist = song
+                },
+                onNavigateToArtist = { browseId ->
+                    songForOptions = null
+                    navController.navigate(Screen.Artis.createRoute(browseId))
+                },
+                onNavigateToAlbum = { browseId ->
+                    songForOptions = null
+                    navController.navigate(Screen.Album.createRoute(browseId))
+                }
+            )
+        }
+
+        // ── Bottom Sheet Tambah ke Daftar Putar ─────────────────────────────
         songForAddToPlaylist?.let { targetSong ->
             AddToPlaylistSheet(
                 song = targetSong,

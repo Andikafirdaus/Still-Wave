@@ -1,8 +1,10 @@
 package com.example.still_wave_music_player.ui.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,32 +46,15 @@ import com.example.still_wave_music_player.data.local.getSongKey
 import com.example.still_wave_music_player.data.model.Song
 import com.example.still_wave_music_player.ui.components.AlbumArt
 import com.example.still_wave_music_player.ui.components.AppIcons
-import com.example.still_wave_music_player.ui.components.LibraryStateView
-import com.example.still_wave_music_player.ui.theme.Accent
 import com.example.still_wave_music_player.ui.theme.Background
 import com.example.still_wave_music_player.ui.theme.Border
-import com.example.still_wave_music_player.ui.theme.Surface
 import com.example.still_wave_music_player.ui.theme.SurfaceHigh
-import com.example.still_wave_music_player.ui.theme.TextMuted
 import com.example.still_wave_music_player.ui.theme.TextPrimary
 import com.example.still_wave_music_player.ui.theme.TextSecondary
 import com.example.still_wave_music_player.viewmodels.HomeViewModel
-import com.example.still_wave_music_player.viewmodels.LibraryUiState
 
-/**
- * Layar Beranda:
- * - Header Beranda (Judul + Pengaturan)
- * - "Baru diputar" (maksimal 10 lagu unik dari riwayat pemutaran Room)
- * - "Untuk kamu" (rekomendasi berbasis artis 30 hari terakhir dengan peluruhan nilai)
- * - "Suasana" (baris chip suasana: Sedih, Galau, Santai, Semangat, Fokus, Romantis, Pesta, Tidur)
- * - "Sedang populer" (hasil online lagu populer Indonesia)
- * - "Baru ditambahkan" & "Lagu di perangkat" (jika lagu lokal tersedia)
- */
 @Composable
 fun HomeScreen(
-    libraryState: LibraryUiState,
-    requiredPermission: String,
-    onPermissionGranted: () -> Unit,
     recentlyPlayed: List<Song> = emptyList(),
     onPlaySong: (Song, List<Song>) -> Unit = { _, _ -> },
     onOpenAddToPlaylist: (Song) -> Unit = {},
@@ -79,7 +64,6 @@ fun HomeScreen(
 ) {
     val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
-    // 10 lagu unik dari riwayat
     val uniqueRecentlyPlayed = remember(recentlyPlayed) {
         recentlyPlayed.distinctBy { it.getSongKey() }.take(10)
     }
@@ -88,11 +72,6 @@ fun HomeScreen(
     val trendingSongs by homeViewModel.trendingSongs.collectAsState()
 
     val moodList = listOf("Sedih", "Galau", "Santai", "Semangat", "Fokus", "Romantis", "Pesta", "Tidur")
-
-    val localSongs = (libraryState as? LibraryUiState.Berisi)?.daftar ?: emptyList()
-    val recentlyAdded = remember(localSongs) {
-        localSongs.sortedByDescending { it.dateAdded }.take(8)
-    }
 
     LazyColumn(
         modifier = Modifier
@@ -135,7 +114,7 @@ fun HomeScreen(
             }
         }
 
-        // ── 2. Bagian: Baru diputar (Maksimal 10 lagu unik) ───────────────────
+        // ── 2. Bagian: Baru diputar ───────────────────────────────────────────
         if (uniqueRecentlyPlayed.isNotEmpty()) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -156,7 +135,8 @@ fun HomeScreen(
                         items(uniqueRecentlyPlayed, key = { "recent_${it.getSongKey()}" }) { song ->
                             SongSquareCard(
                                 song = song,
-                                onClick = { onPlaySong(song, uniqueRecentlyPlayed) }
+                                onClick = { onPlaySong(song, uniqueRecentlyPlayed) },
+                                onLongClick = { onOpenAddToPlaylist(song) }
                             )
                         }
                     }
@@ -164,7 +144,7 @@ fun HomeScreen(
             }
         }
 
-        // ── 3. Bagian: Untuk kamu (Rekomendasi Cerdas) ────────────────────────
+        // ── 3. Bagian: Untuk kamu ─────────────────────────────────────────────
         if (forYouSongs.isNotEmpty()) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -185,7 +165,8 @@ fun HomeScreen(
                         items(forYouSongs, key = { "foryou_${it.getSongKey()}" }) { song ->
                             SongSquareCard(
                                 song = song,
-                                onClick = { onPlaySong(song, emptyList()) }
+                                onClick = { onPlaySong(song, emptyList()) },
+                                onLongClick = { onOpenAddToPlaylist(song) }
                             )
                         }
                     }
@@ -193,7 +174,7 @@ fun HomeScreen(
             }
         }
 
-        // ── 4. Bagian: Suasana (Baris Chip) ──────────────────────────────────
+        // ── 4. Bagian: Suasana ────────────────────────────────────────────────
         item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
@@ -220,7 +201,7 @@ fun HomeScreen(
             }
         }
 
-        // ── 5. Bagian: Sedang populer (Online Trending) ───────────────────────
+        // ── 5. Bagian: Sedang populer (Online) ────────────────────────────────
         if (trendingSongs.isNotEmpty()) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -241,98 +222,32 @@ fun HomeScreen(
                         items(trendingSongs, key = { "trending_${it.getSongKey()}" }) { song ->
                             SongSquareCard(
                                 song = song,
-                                onClick = { onPlaySong(song, emptyList()) }
+                                onClick = { onPlaySong(song, emptyList()) },
+                                onLongClick = { onOpenAddToPlaylist(song) }
                             )
                         }
                     }
-                }
-            }
-        }
-
-        // ── 6. Bagian Lagu Lokal: Baru Ditambahkan ────────────────────────────
-        if (recentlyAdded.isNotEmpty()) {
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Text(
-                        text = "Baru ditambahkan",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextPrimary
-                        ),
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        items(recentlyAdded, key = { "local_recent_${it.id}" }) { song ->
-                            SongSquareCard(
-                                song = song,
-                                onClick = { onPlaySong(song, recentlyAdded) }
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // ── 7. Bagian Lagu Lokal: Daftar Vertikal ────────────────────────────
-        if (localSongs.isNotEmpty()) {
-            item {
-                Text(
-                    text = "Lagu di perangkat",
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary
-                    ),
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-            }
-
-            items(localSongs, key = { "all_local_${it.id}" }) { song ->
-                TrackRowItem(
-                    song = song,
-                    onClick = { onPlaySong(song, localSongs) },
-                    onMoreClick = { onOpenAddToPlaylist(song) },
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-            }
-        } else if (libraryState !is LibraryUiState.Berisi) {
-            // Tampilan info jika izin belum ada atau lagu lokal kosong
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    LibraryStateView(
-                        state = libraryState,
-                        requiredPermission = requiredPermission,
-                        onPermissionGranted = onPermissionGranted
-                    )
                 }
             }
         }
     }
 }
 
-/**
- * Kartu lagu persegi untuk baris horizontal (Baru diputar, Untuk kamu, Sedang populer).
- */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SongSquareCard(
     song: Song,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .width(136.dp)
             .clip(RoundedCornerShape(12.dp))
-            .clickable { onClick() }
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
     ) {
         AlbumArt(
             song = song,
@@ -368,9 +283,6 @@ private fun SongSquareCard(
     }
 }
 
-/**
- * Chip suasana dengan warna solid dan sudut melengkung.
- */
 @Composable
 private fun MoodChipItem(
     label: String,
@@ -398,9 +310,6 @@ private fun MoodChipItem(
     }
 }
 
-/**
- * Baris item lagu untuk daftar vertikal dengan tombol MoreVert.
- */
 @Composable
 fun TrackRowItem(
     song: Song,
