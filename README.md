@@ -8,11 +8,30 @@ Pemutar musik Android pribadi yang gratis, tanpa iklan, dan tanpa akun. Memutar 
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.2-7f52ff)
 ![UI](https://img.shields.io/badge/UI-Jetpack%20Compose-4285f4)
 ![Status](https://img.shields.io/badge/status-in%20development-orange)
+[![Rilis terbaru](https://img.shields.io/github/v/release/Andikafirdaus/Still-Wave?label=rilis)](https://github.com/Andikafirdaus/Still-Wave/releases/latest)
+
+## Unduh
+
+Ingin langsung mencoba tanpa membangun sendiri? Unduh APK terbaru di halaman rilis:
+
+**[Unduh Still Wave (Releases)](https://github.com/Andikafirdaus/Still-Wave/releases/latest)**
+
+Cara memasang:
+
+1. Buka halaman rilis di atas, lalu unduh berkas `.apk` pada bagian **Assets** di rilis terbaru.
+2. Buka berkas yang sudah diunduh di HP-mu.
+3. Jika diminta, izinkan pemasangan dari sumber ini (**Izinkan dari sumber ini** / **Install unknown apps**) di pengaturan Android.
+4. Ketuk **Pasang** (Install), lalu buka aplikasi **Still Wave**.
+
+Kebutuhan: Android 8.0 (API 26) atau lebih baru dan koneksi internet. Untuk memperbarui, unduh APK rilis yang lebih baru lalu pasang di atas aplikasi yang lama; data tetap aman selama tanda tangan aplikasinya sama.
+
+> Fitur yang masih dalam pengembangan bisa belum tersedia di versi rilis. Lihat catatan di setiap rilis dan bagian [Peta jalan](#peta-jalan).
 
 ---
 
 ## Daftar isi
 
+- [Unduh](#unduh)
 - [Tentang](#tentang)
 - [Tampilan](#tampilan)
 - [Fitur](#fitur)
